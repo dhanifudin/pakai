@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "lastComputedDate": "2026-05-10",
+  "dailyActivity": [
+    {
+      "date": "2026-05-01",
+      "messageCount": 150,
+      "sessionCount": 3,
+      "toolCallCount": 45
+    },
+    {
+      "date": "2026-05-02",
+      "messageCount": 200,
+      "sessionCount": 2,
+      "toolCallCount": 60
+    },
+    {
+      "date": "2026-04-30",
+      "messageCount": 500,
+      "sessionCount": 1,
+      "toolCallCount": 100
+    }
+  ],
+  "modelUsage": {
+    "claude-sonnet-4": {
+      "inputTokens": 50000,
+      "outputTokens": 25000,
+      "costUSD": 1.25
+    }
+  }
+}

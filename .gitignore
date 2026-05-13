@@ -1,0 +1,19 @@
+# Go build artifacts
+/pakai
+/dist/
+/bin/
+/_tmp/
+*.test
+*.out
+coverage.out
+.coverprofile
+
+# Go workspace / local env
+.env
+.env.*
+
+# OS / editor noise
+.DS_Store
+
+# BMad user-local overrides
+_bmad/**/*.user.toml
