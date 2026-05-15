@@ -30,8 +30,8 @@ var version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:   "pakai",
-	Short: "Unified AI subscription usage tracker",
-	Long:  "pakai tracks AI usage from local sources and surfaces it via tmux, waybar, CLI status, and a TUI dashboard.",
+	Short: "PakAI — unified AI subscription usage tracker",
+	Long:  "PakAI tracks AI usage from local sources and surfaces it via tmux, waybar, CLI status, and a TUI dashboard.",
 }
 
 func main() {
@@ -170,7 +170,7 @@ func fetchDirect() ([]*schema.Usage, time.Time, error) {
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the pakai version",
+		Short: "Print the PakAI version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.Println(version)
 			return nil

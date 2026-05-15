@@ -149,7 +149,7 @@ func (m dashboardModel) View() string {
 	var sb strings.Builder
 
 	// Title
-	sb.WriteString(titleStyle.Render("pakai — AI Usage Tracker"))
+	sb.WriteString(titleStyle.Render("PakAI — AI Usage Tracker"))
 	sb.WriteString("\n")
 
 	providerCount := len(m.usages)

@@ -28,7 +28,7 @@ func TestWriteUnit(t *testing.T) {
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "Description=pakai") {
+	if !strings.Contains(content, "Description=PakAI") {
 		t.Error("unit missing Description")
 	}
 	if !strings.Contains(content, "ExecStart="+execPath) {

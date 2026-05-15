@@ -17,7 +17,7 @@ func WriteUnit(execPath string, home homeFunc) error {
 	}
 
 	unit := fmt.Sprintf(`[Unit]
-Description=pakai usage tracker daemon
+Description=PakAI usage tracker daemon
 After=default.target
 
 [Service]

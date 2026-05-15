@@ -1,4 +1,4 @@
-# pakai
+# PakAI (`pakai`)
 
 > **Disclaimer**: This project was written 100% using AI.
 
