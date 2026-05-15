@@ -16,6 +16,13 @@ import (
 
 const dbFileName = "opencode.db"
 
+// Per-window usage limits from https://opencode.ai/docs/go/
+const (
+	go5HLimit    = 12.0
+	goWeekLimit  = 30.0
+	goMonthLimit = 60.0
+)
+
 // providerRow holds a single row from the OpenCode query.
 type providerRow struct {
 	ProviderID   string
@@ -247,7 +254,7 @@ func buildUsageWindows(now, monthStart, monthEnd time.Time, limit float64, row p
 		PeriodEnd:   now,
 		ResetAt:     now.Add(7 * 24 * time.Hour),
 		Used:        row.WeekCostUSD,
-		Limit:       limit,
+		Limit:       goWeekLimit,
 		Unit:        "usd",
 	}
 	fiveHWindow := schema.UsageWindow{
@@ -257,7 +264,7 @@ func buildUsageWindows(now, monthStart, monthEnd time.Time, limit float64, row p
 		PeriodEnd:   now,
 		ResetAt:     now.Add(5 * time.Hour),
 		Used:        row.FiveHCostUSD,
-		Limit:       limit,
+		Limit:       go5HLimit,
 		Unit:        "usd",
 	}
 	monthWindow := schema.UsageWindow{

@@ -13,47 +13,57 @@ import (
 	"github.com/dhanifudin/pakai/internal/schema"
 )
 
-// Styles
+// Styles — using terminal-adaptive colors that auto-switch between light/dark themes.
+// Based on Catppuccin Latte (light) and Catppuccin Mocha (dark) palettes.
 var (
+	accentColor = lipgloss.AdaptiveColor{Light: "#8839ef", Dark: "#cba6f7"}
+	textColor   = lipgloss.AdaptiveColor{Light: "#4c4f69", Dark: "#cdd6f4"}
+	greenColor  = lipgloss.AdaptiveColor{Light: "#40a02b", Dark: "#a6e3a1"}
+	yellowColor = lipgloss.AdaptiveColor{Light: "#df8e1d", Dark: "#f9e2af"}
+	redColor    = lipgloss.AdaptiveColor{Light: "#d20f39", Dark: "#f38ba8"}
+	dimColor    = lipgloss.AdaptiveColor{Light: "#9ca0b0", Dark: "#585b70"}
+	subtleColor = lipgloss.AdaptiveColor{Light: "#bcc0cc", Dark: "#6c7086"}
+	emptyColor  = lipgloss.AdaptiveColor{Light: "#e6e9ef", Dark: "#313244"}
+
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("205")).
+			Foreground(accentColor).
 			MarginBottom(1)
 
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("240"))
+			Foreground(dimColor)
 
 	providerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255"))
+			Foreground(textColor)
 
 	okStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("46"))
+		Foreground(greenColor)
 
 	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("226"))
+			Foreground(yellowColor)
 
 	criticalStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196"))
+			Foreground(redColor)
 
 	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
+			Foreground(redColor).
 			Bold(true)
 
 	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+			Foreground(dimColor)
 
 	subtleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
+			Foreground(subtleColor)
 
 	barFilledStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("46"))
+			Foreground(greenColor)
 
 	barEmptyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("238"))
+			Foreground(emptyColor)
 
 	warningNoteStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("214"))
+				Foreground(yellowColor)
 )
 
 // dashboardModel is the Bubbletea model for the dashboard.
