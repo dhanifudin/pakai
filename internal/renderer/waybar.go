@@ -34,19 +34,19 @@ func RenderWaybar(usages []*schema.Usage, separator string) string {
 
 		switch u.Status {
 		case schema.StatusError:
+			textParts = append(textParts, coloredText(tmuxProviderToken(u)+" ?", "error"))
 			label := u.Label
 			if label == "" {
 				label = u.Provider
 			}
-			textParts = append(textParts, fmt.Sprintf("%s:??", label))
 			tooltipParts = append(tooltipParts, fmt.Sprintf("%s: %s", label, u.Error))
 
 		case schema.StatusStale:
+			textParts = append(textParts, coloredText(tmuxProviderToken(u)+" ?", "stale"))
 			label := u.Label
 			if label == "" {
 				label = u.Provider
 			}
-			textParts = append(textParts, fmt.Sprintf("%s:??", label))
 			tooltipParts = append(tooltipParts, fmt.Sprintf("%s: last refreshed %s", label, u.RefreshedAt.Format(time.RFC3339)))
 
 		default:
@@ -54,7 +54,8 @@ func RenderWaybar(usages []*schema.Usage, separator string) string {
 			if pctInt := int(pct); pctInt > overallPct {
 				overallPct = pctInt
 			}
-			textParts = append(textParts, renderProviderWaybarCompact(u))
+			compact := renderProviderTmuxCompact(u)
+			textParts = append(textParts, coloredText(compact, providerClass))
 			tooltip := renderProviderTooltip(u)
 			if u.Warning != "" {
 				tooltip += "\nwarning: " + u.Warning
@@ -75,6 +76,33 @@ func RenderWaybar(usages []*schema.Usage, separator string) string {
 		return `{"text":"error","tooltip":"","class":"ok","percentage":0}`
 	}
 	return string(b)
+}
+
+func coloredText(text, class string) string {
+	color := pangoColor(class)
+	if color == "" {
+		return text
+	}
+	return fmt.Sprintf("<span foreground='%s'>%s</span>", color, text)
+}
+
+func pangoColor(class string) string {
+	switch class {
+	case "ok":
+		return "#a6e3a1"
+	case "warning":
+		return "#f9e2af"
+	case "critical":
+		return "#f38ba8"
+	case "over-limit":
+		return "#f38ba8"
+	case "error":
+		return "#fab387"
+	case "stale":
+		return "#6c7086"
+	default:
+		return ""
+	}
 }
 
 func classForUsage(u *schema.Usage) string {

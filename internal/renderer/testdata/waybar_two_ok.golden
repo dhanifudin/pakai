@@ -1,1 +1,1 @@
-{"text":"󰚩 72% | 󰘦 $1.2","tooltip":"󰚩 Claude: 72% (126.00 of 175.00 messages)\n󰘦 OpenCode: $1.24 this month","class":"warning","percentage":72}
+{"text":"\u003cspan foreground='#f9e2af'\u003e󰚩 72%\u003c/span\u003e | \u003cspan foreground='#a6e3a1'\u003e󰘦 $1.2\u003c/span\u003e","tooltip":"󰚩 Claude: 72% (126.00 of 175.00 messages)\n󰘦 OpenCode: $1.24 this month","class":"warning","percentage":72}
