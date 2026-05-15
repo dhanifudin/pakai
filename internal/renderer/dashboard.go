@@ -43,11 +43,17 @@ var (
 	dimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
 
+	subtleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245"))
+
 	barFilledStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("46"))
 
 	barEmptyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("238"))
+
+	warningNoteStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("214"))
 )
 
 // dashboardModel is the Bubbletea model for the dashboard.
@@ -136,11 +142,17 @@ func (m dashboardModel) View() string {
 	sb.WriteString(titleStyle.Render("pakai — AI Usage Tracker"))
 	sb.WriteString("\n")
 
+	providerCount := len(m.usages)
+	refreshedLine := "waiting for first refresh"
+	if !m.refreshedAt.IsZero() {
+		refreshedLine = fmt.Sprintf("refreshed %s ago", time.Since(m.refreshedAt).Round(time.Second))
+	}
+
 	// Daemon info
 	if m.daemonInfo != nil {
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("Daemon uptime: %ds", m.daemonInfo.UptimeSeconds)))
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("Daemon %ds  |  %d providers  |  %s", m.daemonInfo.UptimeSeconds, providerCount, refreshedLine)))
 	} else {
-		sb.WriteString(dimStyle.Render("Daemon: connecting..."))
+		sb.WriteString(dimStyle.Render("Daemon connecting..."))
 	}
 	sb.WriteString("\n\n")
 
@@ -155,14 +167,7 @@ func (m dashboardModel) View() string {
 	} else {
 		for _, u := range m.usages {
 			sb.WriteString(renderDashboardRow(u))
-			sb.WriteString("\n")
-		}
-
-		if !m.refreshedAt.IsZero() {
-			ago := time.Since(m.refreshedAt).Round(time.Second)
-			sb.WriteString("\n")
-			sb.WriteString(dimStyle.Render(fmt.Sprintf("Refreshed %s ago", ago)))
-			sb.WriteString("\n")
+			sb.WriteString("\n\n")
 		}
 	}
 
@@ -183,61 +188,67 @@ func (m dashboardModel) View() string {
 }
 
 func renderDashboardRow(u *schema.Usage) string {
+	var lines []string
 	label := u.Label
 	if label == "" {
 		label = u.Provider
 	}
+	header := label
+	if icon := providerIcon(u.Provider); icon != "" {
+		header = icon + " " + label
+	}
 
 	if u.Status == schema.StatusError {
-		return fmt.Sprintf("  %-20s %s",
-			providerStyle.Render(label),
-			errorStyle.Render("error: "+u.Error))
+		lines = append(lines, "  "+providerStyle.Render(header))
+		lines = append(lines, "    "+errorStyle.Render("error: "+u.Error))
+		return strings.Join(lines, "\n")
 	}
 
-	if len(u.WindowsOrDefault()) > 1 {
-		return fmt.Sprintf("  %-20s %s",
-			providerStyle.Render(label),
-			dimStyle.Render(strings.Join(func() []string {
-				parts := make([]string, 0, len(u.WindowsOrDefault()))
-				for _, w := range u.WindowsOrDefault() {
-					parts = append(parts, renderWindowCompact(w))
-				}
-				return parts
-			}(), "  ")))
+	lines = append(lines, "  "+providerStyle.Render(header))
+	for _, w := range u.WindowsOrDefault() {
+		lines = append(lines, renderDashboardWindowRow(w))
 	}
-
-	pct := u.Pct()
-	usedStr := u.FormatUsed()
-
-	var statusStr string
-	if pct < 0 {
-		statusStr = fmt.Sprintf("%-12s %s", usedStr, dimStyle.Render("(no limit)"))
-	} else {
-		bar := coloredProgressBar(pct, 12)
-		pctStr := fmt.Sprintf("%3.0f%%", pct)
-		var pctStyled string
-		switch {
-		case pct >= 95:
-			pctStyled = criticalStyle.Render(pctStr)
-		case pct >= 80:
-			pctStyled = criticalStyle.Render(pctStr)
-		case pct >= 50:
-			pctStyled = warningStyle.Render(pctStr)
-		default:
-			pctStyled = okStyle.Render(pctStr)
-		}
-		statusStr = fmt.Sprintf("%s %s %s", bar, pctStyled, dimStyle.Render(usedStr))
+	if u.Warning != "" {
+		lines = append(lines, "    "+warningNoteStyle.Render("note: "+u.Warning))
 	}
-
-	var mockTag string
 	if u.Status == schema.StatusMock {
-		mockTag = dimStyle.Render(" [mock]")
+		lines = append(lines, "    "+dimStyle.Render("mock data"))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderDashboardWindowRow(w schema.UsageWindow) string {
+	label := padWindowLabel(shortWindowLabel(w))
+	pct := w.Pct()
+	reset := formatResetAt(w.ResetAt)
+
+	if pct < 0 {
+		line := fmt.Sprintf("    %s  %s", label, subtleStyle.Render(w.FormatUsed()))
+		if reset != "" {
+			line += "  " + dimStyle.Render(reset)
+		}
+		return line
 	}
 
-	return fmt.Sprintf("  %-20s %s%s",
-		providerStyle.Render(label),
-		statusStr,
-		mockTag)
+	bar := coloredProgressBar(pct, 12)
+	pctStr := fmt.Sprintf("%3.0f%%", pct)
+	var pctStyled string
+	switch {
+	case pct >= 95:
+		pctStyled = criticalStyle.Render(pctStr)
+	case pct >= 80:
+		pctStyled = criticalStyle.Render(pctStr)
+	case pct >= 50:
+		pctStyled = warningStyle.Render(pctStr)
+	default:
+		pctStyled = okStyle.Render(pctStr)
+	}
+	line := fmt.Sprintf("    %s  %s %s", label, bar, pctStyled)
+	meta := fmt.Sprintf("%s / %s", w.FormatUsed(), formatWindowLimit(w))
+	if reset != "" {
+		meta += "  " + reset
+	}
+	return line + "  " + subtleStyle.Render(meta)
 }
 
 func coloredProgressBar(pct float64, width int) string {

@@ -17,8 +17,8 @@ func TestDetect_Found(t *testing.T) {
 	os.WriteFile(opencodePath, []byte(""), 0644)
 
 	results := Detect(func() string { return dir })
-	if len(results) != 2 {
-		t.Fatalf("got %d detections, want 2", len(results))
+	if len(results) != 3 {
+		t.Fatalf("got %d detections, want 3", len(results))
 	}
 	if !results[0].Found {
 		t.Errorf("claude should be found")
@@ -46,11 +46,17 @@ func TestDetect_ClaudeOnly(t *testing.T) {
 	os.WriteFile(claudePath, []byte("{}"), 0644)
 
 	results := Detect(func() string { return dir })
-	if len(results) == 0 {
-		t.Fatal("expected at least claude detection")
+	if len(results) != 3 {
+		t.Fatalf("got %d detections, want 3", len(results))
 	}
 	if !results[0].Found {
 		t.Errorf("claude should be found")
+	}
+	if results[1].Found {
+		t.Errorf("opencode should not be found")
+	}
+	if results[2].Found {
+		t.Errorf("openai should not be found")
 	}
 }
 

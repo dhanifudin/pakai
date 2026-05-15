@@ -41,17 +41,10 @@ func renderProviderTmuxCompact(u *schema.Usage) string {
 	}
 
 	if bestPct >= 0 {
-		return maybeWarn(token, fmt.Sprintf("%.0f%%", bestPct), u.Warning)
+		return token + " " + fmt.Sprintf("%.0f%%", bestPct)
 	}
 
-	return maybeWarn(token, tmuxCompactValue(u), u.Warning)
-}
-
-func maybeWarn(token, value, warning string) string {
-	if warning != "" {
-		return token + " !" + value
-	}
-	return token + " " + value
+	return token + " " + tmuxCompactValue(u)
 }
 
 func tmuxProviderToken(u *schema.Usage) string {

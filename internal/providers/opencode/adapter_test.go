@@ -3,11 +3,15 @@ package opencode
 import (
 	"context"
 	"database/sql"
+	"math"
+	"os"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 
+	"github.com/dhanifudin/pakai/internal/config"
+	"github.com/dhanifudin/pakai/internal/schema"
 	"github.com/dhanifudin/pakai/internal/testutil"
 )
 
@@ -27,6 +31,11 @@ func currentMonthMillis(t *testing.T) (int64, int64) {
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	end := start.AddDate(0, 1, 0)
 	return start.UnixMilli(), end.UnixMilli()
+}
+
+func TestMain(m *testing.M) {
+	codexDetector = func() bool { return false }
+	os.Exit(m.Run())
 }
 
 func TestFetchAll_SingleProvider(t *testing.T) {
@@ -155,5 +164,58 @@ func TestFetchAll_DBError(t *testing.T) {
 		t.Logf("expected error on closed db: %v", err)
 	} else {
 		t.Error("expected error on closed database connection")
+	}
+}
+
+func TestFetchAll_SharedSubscriptionEstimateForZeroCostProvider(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	db := newTestDB(t)
+	start, _ := currentMonthMillis(t)
+	mid := start + 1000
+
+	err := testutil.SeedDB(db, []testutil.MessageRow{
+		{ID: "m1", SessionID: "s1", CreatedAt: mid, UpdatedAt: mid, Role: "assistant", Cost: 0, Provider: "openai", TokensIn: 800, TokensOut: 200},
+		{ID: "m2", SessionID: "s1", CreatedAt: mid + 100, UpdatedAt: mid + 100, Role: "assistant", Cost: 6, Provider: "opencode-go", TokensIn: 100, TokensOut: 100},
+	})
+	if err != nil {
+		t.Fatalf("SeedDB: %v", err)
+	}
+
+	if err := config.SetKey("provider.opencode-go.limit", "10"); err != nil {
+		t.Fatalf("SetKey: %v", err)
+	}
+
+	p := NewFromDB(db)
+	ctx := context.Background()
+	got, err := p.FetchAll(ctx)
+	if err != nil {
+		t.Fatalf("FetchAll error = %v, want nil", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("got %d providers, want 2", len(got))
+	}
+
+	byProvider := map[string]*schema.Usage{}
+	for _, u := range got {
+		byProvider[u.Provider] = u
+	}
+
+	openai := byProvider["openai"]
+	if openai == nil {
+		t.Fatal("missing openai usage")
+	}
+	if openai.Limit != 10 {
+		t.Fatalf("openai limit = %.2f, want 10.00", openai.Limit)
+	}
+	if openai.Warning == "" {
+		t.Fatal("expected openai warning for estimated shared subscription usage")
+	}
+	if math.Abs(openai.Pct()-50) > 0.01 {
+		t.Fatalf("openai pct = %.2f, want 50.00", openai.Pct())
+	}
+	if len(openai.Windows) != 1 {
+		t.Fatalf("openai windows = %d, want 1 (zero-cost estimated only gets monthly)", len(openai.Windows))
 	}
 }

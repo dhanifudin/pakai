@@ -32,28 +32,7 @@ func renderProviderCompact(u *schema.Usage) string {
 }
 
 func renderProviderWaybarCompact(u *schema.Usage) string {
-	windows := u.WindowsOrDefault()
-	if len(windows) == 1 {
-		return renderProviderTmuxCompact(u)
-	}
-
-	prefix := providerIcon(u.Provider)
-	if prefix == "" {
-		prefix = u.Label
-		if prefix == "" {
-			prefix = u.Provider
-		}
-	}
-
-	parts := make([]string, 0, len(windows))
-	for _, w := range windows {
-		parts = append(parts, renderWindowWaybarCompact(w))
-	}
-	text := fmt.Sprintf("%s %s", prefix, strings.Join(parts, " "))
-	if u.Warning != "" {
-		return prefix + " !"
-	}
-	return text
+	return renderProviderTmuxCompact(u)
 }
 
 func renderWindowCompact(w schema.UsageWindow) string {
@@ -239,7 +218,11 @@ func providerIcon(provider string) string {
 	switch strings.ToLower(provider) {
 	case "claude":
 		return "󰚩"
+	case "openai":
+		return "󱢆"
 	case "opencode":
+		return "󰘦"
+	case "opencode-go":
 		return "󰘦"
 	default:
 		return ""

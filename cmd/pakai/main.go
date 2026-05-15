@@ -18,6 +18,7 @@ import (
 	"github.com/dhanifudin/pakai/internal/detect"
 	"github.com/dhanifudin/pakai/internal/providers"
 	claudeprov "github.com/dhanifudin/pakai/internal/providers/claude"
+	"github.com/dhanifudin/pakai/internal/providers/codex"
 	"github.com/dhanifudin/pakai/internal/providers/mock"
 	opencodeprov "github.com/dhanifudin/pakai/internal/providers/opencode"
 	"github.com/dhanifudin/pakai/internal/renderer"
@@ -807,12 +808,34 @@ func newProviderDebugCmd() *cobra.Command {
 					}
 				}
 
+			case "openai":
+				p := codex.New()
+				fmt.Printf("Scanning: ~/.codex/auth.json\n")
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				u, err := p.Fetch(ctx)
+				if err != nil {
+					fmt.Printf("Fetch error: %v\n", err)
+				} else {
+					fmt.Printf("Status: %s\n", u.Status)
+					for _, w := range u.WindowsOrDefault() {
+						if pct := w.Pct(); pct >= 0 {
+							fmt.Printf("  - %s: %.0f%%\n", w.Label, pct)
+						} else {
+							fmt.Printf("  - %s: %s\n", w.Label, w.FormatUsed())
+						}
+					}
+					if u.Error != "" {
+						fmt.Printf("Error: %s\n", u.Error)
+					}
+				}
+
 			default:
 				// Check if it's a mock
 				mp, err := mock.Load(id)
 				if err != nil {
 					fmt.Printf("Unknown provider: %s\n", id)
-					fmt.Println("Known providers: claude, opencode")
+					fmt.Println("Known providers: claude, opencode, openai")
 					return nil
 				}
 

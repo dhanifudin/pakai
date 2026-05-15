@@ -18,6 +18,7 @@ import (
 	"github.com/dhanifudin/pakai/internal/config"
 	"github.com/dhanifudin/pakai/internal/providers"
 	"github.com/dhanifudin/pakai/internal/providers/claude"
+	"github.com/dhanifudin/pakai/internal/providers/codex"
 	"github.com/dhanifudin/pakai/internal/providers/mock"
 	"github.com/dhanifudin/pakai/internal/providers/opencode"
 	"github.com/dhanifudin/pakai/internal/schema"
@@ -69,12 +70,12 @@ func NewServer(port int) (*Server, error) {
 	h := NewHub()
 
 	s := &Server{
-		port:       port,
-		startTime:  time.Now(),
-		cache:      c,
-		hub:        h,
-		pidFile:    pidFile,
-		watcher:    config.NewWatcher(),
+		port:      port,
+		startTime: time.Now(),
+		cache:     c,
+		hub:       h,
+		pidFile:   pidFile,
+		watcher:   config.NewWatcher(),
 	}
 
 	provs := s.buildProviders()
@@ -105,6 +106,10 @@ func (s *Server) buildProviders() []providers.Provider {
 
 	if !mockedSet["opencode"] {
 		provs = append(provs, opencode.New())
+	}
+
+	if !mockedSet["openai"] {
+		provs = append(provs, codex.New())
 	}
 
 	return provs

@@ -33,6 +33,11 @@ func Detect(home homeFunc) []Detection {
 			Path:       filepath.Join(h, ".local", "share", "opencode", "opencode.db"),
 			Found:      fileExists(filepath.Join(h, ".local", "share", "opencode", "opencode.db")),
 		},
+		{
+			ProviderID: "openai",
+			Path:       filepath.Join(h, ".codex", "auth.json"),
+			Found:      fileExists(filepath.Join(h, ".codex", "auth.json")),
+		},
 	}
 }
 

@@ -458,6 +458,7 @@ func setDynamicProviderKey(key, value string) error {
 	}
 
 	p := cfg.Provider[id]
+	p.Enabled = true
 	switch field {
 	case "enabled":
 		b, err := strconv.ParseBool(value)

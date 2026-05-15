@@ -248,7 +248,7 @@ func TestRenderTmux_WarningMarker(t *testing.T) {
 	}}
 
 	got := RenderTmux(usages, " | ")
-	if got != "󰚩 !3.2km" {
-		t.Errorf("got %q, want %q", got, "󰚩 !3.2km")
+	if got != "󰚩 3.2km" {
+		t.Errorf("got %q, want %q", got, "󰚩 3.2km")
 	}
 }
