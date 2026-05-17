@@ -149,11 +149,14 @@ func (p *Provider) fetchUsageWindows(ctx context.Context) ([]schema.UsageWindow,
 func (p *Provider) readCredentials() (*oauthCredentials, error) {
 	data, err := os.ReadFile(p.credsPath)
 	if err != nil {
-		return nil, err
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("Codex credentials not found — ensure Codex is installed and you are logged in")
+		}
+		return nil, fmt.Errorf("failed to read Codex credentials: %w", err)
 	}
 	var creds oauthCredentials
 	if err := json.Unmarshal(data, &creds); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse Codex credentials: %w", err)
 	}
 	return &creds, nil
 }

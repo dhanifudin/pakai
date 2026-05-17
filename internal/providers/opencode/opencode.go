@@ -111,7 +111,7 @@ func (p *Provider) FetchAll(ctx context.Context) ([]*schema.Usage, error) {
 	db := p.db
 	if db == nil {
 		if _, err := os.Stat(p.dbPath); os.IsNotExist(err) {
-			return nil, fmt.Errorf("opencode database not found: %s", p.dbPath)
+			return nil, fmt.Errorf("opencode database not found — ensure opencode is installed and has been used at least once")
 		}
 		dsn := fmt.Sprintf("file:%s?_mode=ro&_query_only=true&_busy_timeout=5000", p.dbPath)
 		var err error

@@ -106,7 +106,10 @@ func Load(id string) (*Provider, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("mock provider %q not found: %w", id, err)
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("mock provider %q is not configured — run 'pakai provider mock %s <used> <limit>' to create one", id, id)
+		}
+		return nil, fmt.Errorf("failed to read mock provider %q: %w", id, err)
 	}
 
 	var md mockData

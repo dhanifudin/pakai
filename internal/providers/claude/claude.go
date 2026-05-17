@@ -193,7 +193,7 @@ func (p *Provider) fetchFromPath(ctx context.Context) (*schema.Usage, *schema.Us
 	data, err := os.ReadFile(p.cachePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			errUsage := p.errorUsage(ctx, fmt.Sprintf("stats cache not found: %s", p.cachePath))
+			errUsage := p.errorUsage(ctx, "Claude stats cache not found — ensure Claude Code is running")
 			return nil, errUsage
 		}
 		errUsage := p.errorUsage(ctx, fmt.Sprintf("failed to read stats cache: %v", err))
@@ -316,12 +316,15 @@ func (p *Provider) fetchAPIWindows(ctx context.Context) ([]schema.UsageWindow, e
 func (p *Provider) readCredentials() (*oauthCredentials, error) {
 	data, err := os.ReadFile(p.credsPath)
 	if err != nil {
-		return nil, err
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("Claude credentials not found — ensure Claude Code is installed and you are logged in")
+		}
+		return nil, fmt.Errorf("failed to read Claude credentials: %w", err)
 	}
 
 	var creds oauthCredentials
 	if err := json.Unmarshal(data, &creds); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse Claude credentials: %w", err)
 	}
 	return &creds, nil
 }
