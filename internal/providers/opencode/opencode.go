@@ -185,20 +185,13 @@ GROUP BY provider;`
 	sharedLimit := config.GetProviderLimit("opencode-go")
 	totalRealCost := 0.0
 	totalTokens := 0.0
-	codexInstalled := codexDetector()
 	for _, row := range providerRows {
-		if codexInstalled && strings.ToLower(row.ProviderID) == "openai" {
-			continue
-		}
 		totalRealCost += row.MonthCostUSD
 		totalTokens += row.TotalTokens()
 	}
 
 	var usages []*schema.Usage
 	for _, row := range providerRows {
-		if codexInstalled && strings.ToLower(row.ProviderID) == "openai" {
-			continue
-		}
 		provID := row.ProviderID
 		if provID == "" {
 			provID = "opencode-unknown"
@@ -305,13 +298,3 @@ func isSQLiteBusy(err error) bool {
 		strings.Contains(err.Error(), "database is locked")
 }
 
-func isCodexInstalled() bool {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(filepath.Join(home, ".codex", "auth.json"))
-	return err == nil
-}
-
-var codexDetector = isCodexInstalled

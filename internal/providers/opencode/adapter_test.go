@@ -34,7 +34,6 @@ func currentMonthMillis(t *testing.T) (int64, int64) {
 }
 
 func TestMain(m *testing.M) {
-	codexDetector = func() bool { return false }
 	os.Exit(m.Run())
 }
 
