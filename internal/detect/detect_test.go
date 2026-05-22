@@ -12,7 +12,7 @@ func TestDetect_Found(t *testing.T) {
 	os.MkdirAll(filepath.Dir(claudePath), 0755)
 	os.WriteFile(claudePath, []byte("{}"), 0644)
 
-	opencodePath := filepath.Join(dir, ".local", "share", "opencode", "opencode.db")
+	opencodePath := filepath.Join(dir, ".local", "share", "opencode", "opencode-stable.db")
 	os.MkdirAll(filepath.Dir(opencodePath), 0755)
 	os.WriteFile(opencodePath, []byte(""), 0644)
 
@@ -25,6 +25,24 @@ func TestDetect_Found(t *testing.T) {
 	}
 	if !results[1].Found {
 		t.Errorf("opencode should be found")
+	}
+	if results[1].Path != opencodePath {
+		t.Errorf("opencode path = %q, want %q", results[1].Path, opencodePath)
+	}
+}
+
+func TestDetect_OpenCodeLegacyDB(t *testing.T) {
+	dir := t.TempDir()
+	opencodePath := filepath.Join(dir, ".local", "share", "opencode", "opencode.db")
+	os.MkdirAll(filepath.Dir(opencodePath), 0755)
+	os.WriteFile(opencodePath, []byte(""), 0644)
+
+	results := Detect(func() string { return dir })
+	if !results[1].Found {
+		t.Errorf("opencode should be found via legacy opencode.db")
+	}
+	if results[1].Path != opencodePath {
+		t.Errorf("opencode path = %q, want %q", results[1].Path, opencodePath)
 	}
 }
 

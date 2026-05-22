@@ -14,7 +14,21 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const dbFileName = "opencode.db"
+// knownDBNames lists candidate filenames in preference order.
+// Older opencode releases used "opencode.db"; newer ones use "opencode-stable.db".
+var knownDBNames = []string{"opencode-stable.db", "opencode.db"}
+
+// resolveDBPath returns the first existing db file under dir, falling back to
+// the first candidate if none exist yet.
+func resolveDBPath(dir string) string {
+	for _, name := range knownDBNames {
+		p := filepath.Join(dir, name)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return filepath.Join(dir, knownDBNames[0])
+}
 
 // Per-window usage limits from https://opencode.ai/docs/go/
 const (
@@ -48,7 +62,7 @@ type Provider struct {
 func New() *Provider {
 	home, _ := os.UserHomeDir()
 	return &Provider{
-		dbPath: filepath.Join(home, ".local", "share", "opencode", dbFileName),
+		dbPath: resolveDBPath(filepath.Join(home, ".local", "share", "opencode")),
 	}
 }
 

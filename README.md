@@ -65,7 +65,7 @@ Hover for per-window detail with progress bars. Click for full TUI dashboard.
 |----------|--------|---------|---------------|
 | Claude | `~/.claude/stats-cache.json` + OAuth API | 5h, weekly, monthly | `claude login` |
 | OpenAI Codex | `~/.codex/auth.json` OAuth | 5h, weekly | `codex login` |
-| OpenCode Go | `~/.local/share/opencode/opencode.db` | 5h, weekly, monthly | Subscribe at [opencode.ai](https://opencode.ai/auth) |
+| OpenCode Go | `~/.local/share/opencode/opencode-stable.db` (or `opencode.db`) | 5h, weekly, monthly | Subscribe at [opencode.ai](https://opencode.ai/auth) |
 
 OpenCode Go per-window limits are automatically applied from the [official docs](https://opencode.ai/docs/go/): 5h=$12, weekly=$30, monthly=$60.
 
