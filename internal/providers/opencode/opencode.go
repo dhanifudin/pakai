@@ -192,10 +192,13 @@ GROUP BY provider;`
 
 	var usages []*schema.Usage
 	for _, row := range providerRows {
-		provID := row.ProviderID
-		if provID == "" {
-			provID = "opencode-unknown"
+		rawID := row.ProviderID
+		if rawID == "" {
+			rawID = "unknown"
 		}
+		// Namespace the provider ID so it never collides with top-level providers
+		// (e.g. opencode's "openai" rows vs. the Codex "openai" provider).
+		provID := "opencode/" + rawID
 
 		label := config.GetProviderLabel(provID)
 		limit := config.GetProviderLimit(provID)

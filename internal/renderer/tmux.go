@@ -48,14 +48,16 @@ func renderProviderTmuxCompact(u *schema.Usage) string {
 }
 
 func tmuxProviderToken(u *schema.Usage) string {
-	switch strings.ToLower(u.Provider) {
+	p := strings.ToLower(u.Provider)
+	if after, ok := strings.CutPrefix(p, "opencode/"); ok {
+		p = after
+	}
+	switch p {
 	case "claude":
 		return "󰚩"
 	case "openai":
 		return "󱢆"
-	case "opencode":
-		return "󰘦"
-	case "opencode-go":
+	case "opencode", "opencode-go":
 		return "󰘦"
 	}
 

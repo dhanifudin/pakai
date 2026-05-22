@@ -215,14 +215,17 @@ func formatResetAt(t time.Time) string {
 }
 
 func providerIcon(provider string) string {
-	switch strings.ToLower(provider) {
+	p := strings.ToLower(provider)
+	// Strip "opencode/" namespace prefix to reuse base-provider icons.
+	if after, ok := strings.CutPrefix(p, "opencode/"); ok {
+		p = after
+	}
+	switch p {
 	case "claude":
 		return "󰚩"
 	case "openai":
 		return "󱢆"
-	case "opencode":
-		return "󰘦"
-	case "opencode-go":
+	case "opencode", "opencode-go":
 		return "󰘦"
 	default:
 		return ""

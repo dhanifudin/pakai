@@ -201,9 +201,9 @@ func TestFetchAll_SharedSubscriptionEstimateForZeroCostProvider(t *testing.T) {
 		byProvider[u.Provider] = u
 	}
 
-	openai := byProvider["openai"]
+	openai := byProvider["opencode/openai"]
 	if openai == nil {
-		t.Fatal("missing openai usage")
+		t.Fatal("missing opencode/openai usage")
 	}
 	if openai.Limit != 10 {
 		t.Fatalf("openai limit = %.2f, want 10.00", openai.Limit)
