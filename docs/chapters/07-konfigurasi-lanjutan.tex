@@ -1,0 +1,163 @@
+\chapter{Konfigurasi Lanjutan}
+\label{ch:konfigurasi-lanjutan}
+
+\section{Berkas Konfigurasi}
+
+PakAI menyimpan konfigurasi di:
+\begin{itemize}
+  \item \texttt{\$XDG\_CONFIG\_HOME/pakai/config.toml}: jika variabel tersebut diset.
+  \item \texttt{\textasciitilde/.config/pakai/config.toml}: lokasi default.
+\end{itemize}
+
+Berkas dibuat secara otomatis saat pertama kali menyimpan konfigurasi.
+
+\section{Melihat Semua Konfigurasi}
+
+\begin{lstlisting}[style=terminal]
+$ pakai config list
+\end{lstlisting}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.6\linewidth]{pakai-config-list}
+  \caption{Output \texttt{pakai config list}: semua konfigurasi aktif}
+\end{figure}
+
+\section{Mengubah Konfigurasi}
+
+Gunakan \cmd{pakai config set \textit{kunci} \textit{nilai}} untuk mengubah nilai:
+
+\begin{lstlisting}[style=terminal]
+$ pakai config set daemon.port 7732
+$ pakai config get daemon.port
+\end{lstlisting}
+
+\section{Referensi Kunci Konfigurasi}
+
+\subsection{Konfigurasi Daemon}
+
+\begin{center}
+\begin{tabular}{lllp{5cm}}
+\toprule
+\textbf{Kunci} & \textbf{Tipe} & \textbf{Default} & \textbf{Keterangan} \\
+\midrule
+\texttt{daemon.port} & integer & 7731 & Port HTTP daemon (1--65535) \\
+\texttt{daemon.poll\_interval} & integer & 30 & Interval polling dalam detik ($\geq 1$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{lstlisting}[style=terminal]
+$ pakai config set daemon.poll_interval 15
+$ pakai config set daemon.port 7732
+\end{lstlisting}
+
+\subsection{Konfigurasi Tampilan}
+
+\begin{center}
+\begin{tabular}{lllp{5cm}}
+\toprule
+\textbf{Kunci} & \textbf{Tipe} & \textbf{Default} & \textbf{Keterangan} \\
+\midrule
+\texttt{display.separator} & string & \texttt{ | } & Pemisah antar penyedia \\
+\texttt{display.order} & string & (auto) & Urutan penyedia, dipisah koma \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{lstlisting}[style=terminal]
+$ pakai config set display.separator " - "
+$ pakai config set display.order "claude,opencode,openai"
+\end{lstlisting}
+
+\subsection{Konfigurasi Ambang Batas}
+
+\begin{center}
+\begin{tabular}{lllp{5cm}}
+\toprule
+\textbf{Kunci} & \textbf{Tipe} & \textbf{Default} & \textbf{Keterangan} \\
+\midrule
+\texttt{thresholds.warning} & integer & 50 & Ambang peringatan (0--100\%) \\
+\texttt{thresholds.critical} & integer & 80 & Ambang kritis (0--100\%) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{lstlisting}[style=terminal]
+$ pakai config set thresholds.warning 60
+$ pakai config set thresholds.critical 85
+\end{lstlisting}
+
+\subsection{Konfigurasi Per Penyedia}
+
+Setiap penyedia dapat dikonfigurasi dengan format \texttt{provider.\textit{id}.\textit{kunci}}:
+
+\begin{center}
+\begin{tabular}{lllp{4.5cm}}
+\toprule
+\textbf{Kunci} & \textbf{Tipe} & \textbf{Default} & \textbf{Keterangan} \\
+\midrule
+\texttt{provider.\textit{id}.enabled} & bool & true & Aktifkan/nonaktifkan penyedia \\
+\texttt{provider.\textit{id}.label} & string & (id) & Label tampilan kustom \\
+\texttt{provider.\textit{id}.limit} & float & 0 & Batas biaya dalam USD ($\geq 0$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+ID penyedia yang tersedia: \texttt{claude}, \texttt{opencode}, \texttt{openai},
+\texttt{opencode/openai}, \texttt{opencode/opencode-go}.
+
+\begin{lstlisting}[style=terminal]
+# Atur label kustom untuk Claude
+$ pakai config set provider.claude.label "Klaude"
+
+# Atur batas bulanan untuk OpenCode Go
+$ pakai config set provider.opencode-go.limit 60
+
+# Nonaktifkan penyedia OpenAI sementara
+$ pakai config set provider.openai.enabled false
+\end{lstlisting}
+
+\section{Contoh Berkas Konfigurasi Lengkap}
+
+\begin{lstlisting}[style=toml]
+[daemon]
+port = 7731
+poll_interval = 30
+
+[display]
+separator = " | "
+order = "claude,opencode/opencode-go,openai"
+
+[thresholds]
+warning = 50
+critical = 80
+
+[provider.claude]
+enabled = true
+label = "Claude"
+
+[provider.openai]
+enabled = true
+label = "Codex"
+
+[provider.opencode]
+enabled = true
+label = "OpenCode"
+
+[provider."opencode/opencode-go"]
+enabled = true
+limit = 60.0
+\end{lstlisting}
+
+\section{Mock Provider (untuk Pengujian)}
+
+PakAI mendukung penyedia palsu (\textit{mock}) untuk keperluan pengujian tampilan:
+
+\begin{lstlisting}[style=terminal]
+# Buat mock dengan 75% penggunaan
+$ pakai provider mock test-ai --used 75 --limit 100 --unit messages
+
+# Hapus mock
+$ pakai provider unmock test-ai
+\end{lstlisting}

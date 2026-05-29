@@ -1,0 +1,100 @@
+\chapter{Referensi Perintah}
+
+Berikut adalah daftar lengkap semua perintah yang tersedia di PakAI.
+
+\section{Perintah Utama}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Perintah} & \textbf{Keterangan} \\
+\midrule
+\endhead
+\cmd{pakai version} & Menampilkan versi PakAI yang terinstal. \\[4pt]
+\cmd{pakai status} & Menampilkan ringkasan penggunaan semua penyedia. \\[4pt]
+\cmd{pakai status --json} & Menampilkan data penggunaan dalam format JSON mentah. \\[4pt]
+\cmd{pakai tmux} & Menghasilkan string ringkas untuk status bar tmux. \\[4pt]
+\cmd{pakai waybar} & Menghasilkan JSON untuk modul kustom Waybar. \\[4pt]
+\cmd{pakai dashboard} & Membuka antarmuka TUI interaktif dengan pembaruan langsung. \\[4pt]
+\cmd{pakai completion \textit{shell}} & Menghasilkan skrip \textit{tab completion} (\texttt{bash}/\texttt{zsh}/\texttt{fish}). \\
+\bottomrule
+\end{longtable}
+
+\section{Perintah Daemon}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Perintah} & \textbf{Keterangan} \\
+\midrule
+\endhead
+\cmd{pakai daemon start} & Menjalankan daemon di latar belakang. \\[4pt]
+\cmd{pakai daemon start --foreground} & Menjalankan daemon di latar depan (untuk systemd). \\[4pt]
+\cmd{pakai daemon stop} & Menghentikan daemon yang berjalan. \\[4pt]
+\cmd{pakai daemon status} & Menampilkan status daemon (PID, port, uptime). \\
+\bottomrule
+\end{longtable}
+
+\section{Perintah Setup}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Perintah} & \textbf{Keterangan} \\
+\midrule
+\endhead
+\cmd{pakai setup} & Deteksi penyedia, buat unit systemd, tampilkan konfigurasi. \\[4pt]
+\cmd{pakai setup tmux} & Tampilkan cuplikan konfigurasi tmux. \\[4pt]
+\cmd{pakai setup waybar} & Tampilkan cuplikan konfigurasi Waybar dan CSS. \\
+\bottomrule
+\end{longtable}
+
+\section{Perintah Konfigurasi}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Perintah} & \textbf{Keterangan} \\
+\midrule
+\endhead
+\cmd{pakai config list} & Menampilkan semua konfigurasi aktif. \\[4pt]
+\cmd{pakai config get \textit{kunci}} & Menampilkan nilai satu kunci konfigurasi. \\[4pt]
+\cmd{pakai config set \textit{kunci} \textit{nilai}} & Mengatur nilai kunci konfigurasi. \\
+\bottomrule
+\end{longtable}
+
+\section{Perintah Penyedia}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Perintah} & \textbf{Keterangan} \\
+\midrule
+\endhead
+\cmd{pakai provider debug \textit{id}} & Menampilkan data debug untuk penyedia tertentu. \\[4pt]
+\cmd{pakai provider mock \textit{id}} & Membuat penyedia palsu untuk pengujian. \\[4pt]
+\quad \texttt{--used \textit{float}} & Nilai penggunaan (default: 0). \\[2pt]
+\quad \texttt{--limit \textit{float}} & Nilai batas, 0 = tanpa batas (default: 0). \\[2pt]
+\quad \texttt{--unit \textit{string}} & Satuan: \texttt{messages}, \texttt{tokens}, atau \texttt{usd}. \\[4pt]
+\cmd{pakai provider unmock \textit{id}} & Menghapus penyedia palsu. \\
+\bottomrule
+\end{longtable}
+
+\section{HTTP API Daemon}
+
+Daemon mengekspos API HTTP lokal di \texttt{http://127.0.0.1:7731}.
+
+\begin{longtable}{llp{7cm}}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Keterangan} \\
+\midrule
+\endhead
+GET & \texttt{/health} & Status daemon, uptime, jumlah koneksi. \\[4pt]
+GET & \texttt{/status} & Data penggunaan semua penyedia (JSON). \\[4pt]
+GET & \texttt{/events} & \textit{Server-Sent Events} untuk pembaruan langsung. \\[4pt]
+PUT & \texttt{/mock/\textit{name}} & Memasukkan data mock penyedia. \\[4pt]
+DELETE & \texttt{/mock/\textit{name}} & Menghapus data mock penyedia. \\[4pt]
+GET & \texttt{/debug/\textit{name}} & Debug data satu penyedia. \\
+\bottomrule
+\end{longtable}
+
+\begin{lstlisting}[style=terminal]
+# Contoh mengakses API langsung
+$ curl -s http://127.0.0.1:7731/health | python3 -m json.tool
+$ curl -s http://127.0.0.1:7731/status | python3 -m json.tool
+\end{lstlisting}

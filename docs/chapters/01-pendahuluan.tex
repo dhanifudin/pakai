@@ -1,0 +1,56 @@
+\chapter{Pendahuluan}
+
+\section{Apa itu PakAI?}
+
+\textbf{PakAI} (dijalankan dengan perintah \cmd{pakai}) adalah alat bantu berbasis terminal
+untuk memantau penggunaan langganan layanan AI secara terpadu. Alat ini menampilkan
+sisa kuota dan biaya untuk beberapa penyedia AI sekaligus dalam satu tampilan yang
+ringkas.
+
+PakAI mendukung tiga penyedia layanan AI:
+
+\begin{itemize}
+  \item \textbf{Claude} (Anthropic): memantau persentase penggunaan pesan per 5 jam,
+        mingguan, dan bulanan melalui OAuth API.
+  \item \textbf{OpenAI Codex}: memantau kuota penggunaan per 5 jam dan mingguan
+        melalui OAuth API.
+  \item \textbf{OpenCode Go}: memantau biaya penggunaan per penyedia dari
+        database lokal SQLite.
+\end{itemize}
+
+\section{Fitur Utama}
+
+\begin{itemize}
+  \item Pemantauan multi-penyedia dalam satu perintah.
+  \item Tiga jendela waktu: 5 jam, mingguan, dan bulanan.
+  \item Tampilan berwarna: hijau (aman), kuning (peringatan), merah (kritis).
+  \item Empat mode tampilan: status CLI, tmux, Waybar, dan dashboard TUI.
+  \item Daemon latar belakang dengan pembaruan otomatis dan API HTTP.
+  \item Pengaturan melalui berkas konfigurasi TOML.
+  \item Deteksi otomatis penyedia yang terinstal.
+\end{itemize}
+
+\section{Tampilan Aplikasi}
+
+Gambar di bawah menampilkan output perintah \cmd{pakai status} yang menunjukkan
+ringkasan penggunaan semua penyedia yang terdeteksi.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{pakai-status}
+  \caption{Output \texttt{pakai status}: ringkasan penggunaan semua penyedia}
+\end{figure}
+
+\section{Cara Kerja}
+
+PakAI berjalan sebagai \textit{background daemon} yang secara berkala mengambil data
+penggunaan dari setiap penyedia. Data ini kemudian ditampilkan melalui berbagai
+antarmuka:
+
+\begin{enumerate}
+  \item \textbf{Daemon} berjalan di port 7731 dan menyimpan data terbaru.
+  \item Perintah \cmd{pakai status}, \cmd{pakai tmux}, dan \cmd{pakai waybar}
+        mengambil data dari daemon melalui HTTP.
+  \item \cmd{pakai dashboard} menampilkan antarmuka TUI interaktif dengan
+        pembaruan langsung (\textit{live update}).
+\end{enumerate}

@@ -1,0 +1,214 @@
+\chapter{Pemecahan Masalah}
+
+\section{Masalah Instalasi}
+
+\subsection{Perintah \texttt{pakai} tidak ditemukan}
+
+\textbf{Gejala:} \texttt{bash: pakai: command not found}
+
+\textbf{Penyebab:} Direktori instalasi tidak ada di \texttt{\$PATH}.
+
+\textbf{Solusi:}
+\begin{lstlisting}[style=terminal]
+# Cari lokasi binary
+$ which pakai || find ~/go ~/go/bin ~/.local/bin -name pakai 2>/dev/null
+
+# Tambahkan ke PATH (sesuaikan path yang ditemukan)
+$ echo 'export PATH="$PATH:$HOME/go/bin"' >> ~/.bashrc
+$ source ~/.bashrc
+\end{lstlisting}
+
+Jika menggunakan \textbf{asdf}:
+\begin{lstlisting}[style=terminal]
+$ asdf reshim golang
+\end{lstlisting}
+
+\subsection{Build gagal: versi Go terlalu lama}
+
+\textbf{Gejala:} \texttt{requires go >= 1.21}
+
+\textbf{Solusi:} Perbarui Go ke versi 1.21 atau lebih baru.
+\begin{lstlisting}[style=terminal]
+$ go version        # cek versi saat ini
+$ asdf install golang latest   # update via asdf
+\end{lstlisting}
+
+\section{Masalah Daemon}
+
+\subsection{Daemon gagal dimulai: port sudah digunakan}
+
+\textbf{Gejala:} \texttt{port 7731 is already in use by another process}
+
+\textbf{Solusi:}
+\begin{lstlisting}[style=terminal]
+# Cek proses yang menggunakan port
+$ lsof -i :7731 || ss -tlnp | grep 7731
+
+# Hentikan daemon lama
+$ pakai daemon stop
+
+# Atau gunakan port berbeda
+$ pakai config set daemon.port 7732
+$ pakai daemon start
+\end{lstlisting}
+
+\subsection{Daemon berhenti tiba-tiba}
+
+\textbf{Solusi:} Periksa log systemd:
+\begin{lstlisting}[style=terminal]
+$ journalctl --user -u pakai -n 50
+\end{lstlisting}
+
+\subsection{Status daemon menunjukkan data lama (\textit{stale})}
+
+\textbf{Penyebab:} Interval polling terlalu jarang atau koneksi internet bermasalah.
+
+\textbf{Solusi:}
+\begin{lstlisting}[style=terminal]
+# Perkecil interval polling
+$ pakai config set daemon.poll_interval 15
+$ pakai daemon stop
+$ pakai daemon start
+\end{lstlisting}
+
+\section{Masalah Penyedia Claude}
+
+\subsection{Claude stats cache tidak ditemukan}
+
+\textbf{Gejala:} \texttt{Claude stats cache not found: ensure Claude Code is running}
+
+\textbf{Penyebab:} Berkas \texttt{\textasciitilde/.claude/stats-cache.json} tidak ada.
+
+\textbf{Solusi:} Pastikan Claude Code CLI telah diinstal dan pernah dijalankan:
+\begin{lstlisting}[style=terminal]
+$ ls ~/.claude/stats-cache.json
+$ claude --version   # verifikasi instalasi
+\end{lstlisting}
+
+\subsection{Kredensial Claude tidak ditemukan}
+
+\textbf{Gejala:} \texttt{Claude credentials not found: ensure Claude Code is installed}
+
+\textbf{Solusi:}
+\begin{lstlisting}[style=terminal]
+$ claude login
+\end{lstlisting}
+
+\subsection{Persentase Claude tidak tersedia}
+
+\textbf{Gejala:} \texttt{live percentage unavailable}
+
+\textbf{Penyebab:} API OAuth gagal, tetapi data lokal tersedia. PakAI tetap
+menampilkan data cache.
+
+\textbf{Solusi:} Periksa koneksi internet. Jika masalah berlanjut:
+\begin{lstlisting}[style=terminal]
+$ claude logout && claude login
+\end{lstlisting}
+
+\section{Masalah Penyedia OpenAI Codex}
+
+\subsection{Kredensial Codex tidak ditemukan}
+
+\textbf{Gejala:} \texttt{Codex credentials not found: ensure Codex is installed}
+
+\textbf{Solusi:}
+\begin{lstlisting}[style=terminal]
+$ codex login
+$ ls ~/.codex/auth.json   # verifikasi
+\end{lstlisting}
+
+\subsection{Permintaan penggunaan Codex gagal}
+
+\textbf{Gejala:} \texttt{codex usage request failed: status 401}
+
+\textbf{Penyebab:} Token akses kedaluwarsa.
+
+\textbf{Solusi:}
+\begin{lstlisting}[style=terminal]
+$ codex logout && codex login
+\end{lstlisting}
+
+\subsection{Kesalahan sertifikat TLS}
+
+\textbf{Gejala:} \texttt{tls: failed to verify certificate: x509: certificate signed by unknown authority}
+
+\textbf{Penyebab:} Proxy perusahaan atau VPN yang melakukan \textit{TLS inspection}.
+
+\textbf{Solusi:} Tambahkan sertifikat CA ke kepercayaan sistem, atau nonaktifkan
+sementara penyedia yang bermasalah:
+\begin{lstlisting}[style=terminal]
+$ pakai config set provider.openai.enabled false
+\end{lstlisting}
+
+\section{Masalah Penyedia OpenCode}
+
+\subsection{Database OpenCode tidak ditemukan}
+
+\textbf{Gejala:} \texttt{opencode database not found: ensure opencode is installed}
+
+\textbf{Penyebab:} OpenCode belum pernah digunakan atau database belum terbentuk.
+
+\textbf{Solusi:} Gunakan OpenCode minimal satu kali sehingga database terbentuk:
+\begin{lstlisting}[style=terminal]
+$ ls ~/.local/share/opencode/
+# Harus ada: opencode-stable.db atau opencode.db
+\end{lstlisting}
+
+\subsection{Database OpenCode sibuk (\textit{locked})}
+
+\textbf{Gejala:} \texttt{database is busy: another process may be writing}
+
+\textbf{Penyebab:} OpenCode sedang aktif menulis ke database.
+
+\textbf{Solusi:} Tunggu beberapa detik, lalu coba lagi. PakAI akan berhasil
+pada polling berikutnya secara otomatis.
+
+\section{Masalah Tampilan}
+
+\subsection{Ikon tidak muncul di tmux}
+
+\textbf{Penyebab:} Font terminal tidak mendukung Nerd Font.
+
+\textbf{Solusi:} Instal dan atur font Nerd Font di terminal dan tmux. Contoh untuk
+terminal berbasis X11:
+\begin{lstlisting}[style=terminal]
+# Pasang font (Ubuntu/Debian)
+$ sudo apt install fonts-jetbrains-mono
+
+# Atau unduh dari nerdfonts.com
+\end{lstlisting}
+
+\subsection{Waybar tidak memperbarui data}
+
+\textbf{Penyebab:} Interval Waybar atau daemon terlalu panjang.
+
+\textbf{Solusi:} Sesuaikan interval di konfigurasi Waybar:
+\begin{lstlisting}[style=toml]
+"custom/pakai": {
+    "interval": 15
+}
+\end{lstlisting}
+
+\section{Diagnosis Umum}
+
+Jika masalah tidak tercantum di atas, gunakan langkah diagnosis berikut:
+
+\begin{lstlisting}[style=terminal]
+# 1. Cek status daemon
+$ pakai daemon status
+
+# 2. Debug penyedia yang bermasalah
+$ pakai provider debug claude
+$ pakai provider debug opencode
+$ pakai provider debug openai
+
+# 3. Cek log daemon
+$ journalctl --user -u pakai -n 100
+
+# 4. Cek koneksi ke daemon
+$ curl -s http://127.0.0.1:7731/health
+
+# 5. Reset daemon
+$ pakai daemon stop && pakai daemon start
+\end{lstlisting}

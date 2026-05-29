@@ -1,0 +1,123 @@
+\chapter{Konfigurasi Awal}
+
+\section{Perintah Setup Otomatis}
+
+PakAI menyediakan perintah \cmd{pakai setup} yang mendeteksi penyedia yang terinstal,
+menulis unit systemd, dan menampilkan cuplikan konfigurasi yang siap digunakan.
+
+\begin{lstlisting}[style=terminal]
+$ pakai setup
+\end{lstlisting}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.88\linewidth]{pakai-setup}
+  \caption{Output \texttt{pakai setup}: deteksi penyedia dan konfigurasi otomatis}
+\end{figure}
+
+\subsection{Yang Dilakukan oleh \texttt{pakai setup}}
+
+\begin{enumerate}
+  \item \textbf{Deteksi penyedia}: memeriksa jalur berikut:
+    \begin{itemize}
+      \item Claude: \texttt{\textasciitilde/.claude/stats-cache.json}
+      \item OpenCode Go: \texttt{\textasciitilde/.local/share/opencode/opencode-stable.db}
+            atau \texttt{opencode.db}
+      \item OpenAI Codex: \texttt{\textasciitilde/.codex/auth.json}
+    \end{itemize}
+  \item \textbf{Memulai daemon} jika belum berjalan.
+  \item \textbf{Membuat unit systemd} di\\
+        \texttt{\textasciitilde/.config/systemd/user/pakai.service}.
+  \item \textbf{Menampilkan cuplikan konfigurasi} untuk tmux dan Waybar.
+\end{enumerate}
+
+\section{Memulai Daemon}
+
+Daemon adalah proses latar belakang yang mengambil dan menyimpan data penggunaan.
+Tanpa daemon, perintah-perintah PakAI tidak akan menampilkan data.
+
+\subsection{Memulai daemon secara manual}
+
+\begin{lstlisting}[style=terminal]
+$ pakai daemon start
+Daemon started (port 7731)
+\end{lstlisting}
+
+\subsection{Memeriksa status daemon}
+
+\begin{lstlisting}[style=terminal]
+$ pakai daemon status
+\end{lstlisting}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.72\linewidth]{pakai-daemon-status}
+  \caption{Output \texttt{pakai daemon status}}
+\end{figure}
+
+\subsection{Menghentikan daemon}
+
+\begin{lstlisting}[style=terminal]
+$ pakai daemon stop
+\end{lstlisting}
+
+\section{Konfigurasi Autostart dengan Systemd}
+
+Agar daemon berjalan otomatis saat login, aktifkan unit systemd yang dibuat oleh
+\cmd{pakai setup}:
+
+\begin{lstlisting}[style=terminal]
+$ systemctl --user enable --now pakai
+$ systemctl --user status pakai
+\end{lstlisting}
+
+Isi unit systemd yang dibuat secara otomatis:
+
+\begin{lstlisting}[style=toml]
+[Unit]
+Description=PakAI usage tracker daemon
+After=default.target
+
+[Service]
+ExecStart=/home/user/.local/bin/pakai daemon start --foreground
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+\end{lstlisting}
+
+\begin{tipbox}
+  Gunakan \cmd{journalctl --user -u pakai -f} untuk melihat log daemon secara
+  langsung (\textit{real-time}).
+\end{tipbox}
+
+\section{Autentikasi Penyedia}
+
+\subsection{Claude}
+
+Claude menggunakan OAuth yang dikelola oleh Claude Code CLI. Jalankan:
+
+\begin{lstlisting}[style=terminal]
+$ claude login
+\end{lstlisting}
+
+Kredensial disimpan di \texttt{\textasciitilde/.claude/.credentials.json}.
+
+\subsection{OpenAI Codex}
+
+\begin{lstlisting}[style=terminal]
+$ codex login
+\end{lstlisting}
+
+Kredensial disimpan di \texttt{\textasciitilde/.codex/auth.json}.
+
+\subsection{OpenCode Go}
+
+OpenCode Go tidak memerlukan login tambahan. PakAI membaca langsung dari database
+SQLite yang dibuat oleh OpenCode. Pastikan OpenCode sudah pernah digunakan minimal
+satu kali sehingga database terbentuk di:
+
+\begin{lstlisting}[style=terminal]
+~/.local/share/opencode/opencode-stable.db
+\end{lstlisting}

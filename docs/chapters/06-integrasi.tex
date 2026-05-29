@@ -1,0 +1,133 @@
+\chapter{Integrasi}
+
+\section{Integrasi Tmux}
+
+\subsection{Konfigurasi dasar}
+
+Tambahkan baris berikut ke berkas \texttt{\textasciitilde/.tmux.conf}:
+
+\begin{lstlisting}[style=toml]
+# Tampilkan status PakAI di status bar kanan
+set -g status-right "#(pakai tmux)"
+set -g status-interval 30
+
+# Opsional: perpanjang lebar status bar
+set -g status-right-length 100
+\end{lstlisting}
+
+Muat ulang konfigurasi tmux tanpa harus me-restart:
+
+\begin{lstlisting}[style=terminal]
+$ tmux source-file ~/.tmux.conf
+\end{lstlisting}
+
+\subsection{Konfigurasi dengan tmux-powerline}
+
+\begin{sloppypar}
+Jika menggunakan \textit{tmux-powerline} atau tema kustom, sesuaikan
+\texttt{status-right} dengan format yang digunakan tema Anda.
+\end{sloppypar}
+
+\begin{tipbox}
+  Jalankan \cmd{pakai setup tmux} untuk mendapatkan cuplikan konfigurasi tmux
+  yang siap tempel (\textit{ready-to-paste}).
+\end{tipbox}
+
+\subsection{Persyaratan font}
+
+Ikon penyedia menggunakan karakter \textbf{Nerd Font}. Pastikan terminal dan tmux
+menggunakan font Nerd Font seperti:
+\begin{itemize}
+  \item JetBrains Mono Nerd Font
+  \item Fira Code Nerd Font
+  \item DejaVu Sans Mono Nerd Font
+\end{itemize}
+
+Jika ikon tidak muncul, ikon akan digantikan dengan dua huruf pertama nama
+penyedia (misalnya \texttt{cl} untuk Claude).
+
+\section{Integrasi Waybar}
+
+\subsection{Konfigurasi modul}
+
+Tambahkan modul kustom ke berkas konfigurasi Waybar (biasanya
+\path{~/.config/waybar/config.jsonc}):
+
+\begin{lstlisting}[style=toml]
+"custom/pakai": {
+    "exec": "pakai waybar",
+    "return-type": "json",
+    "interval": 30,
+    "tooltip": true,
+    "format": "{}",
+    "on-click": "pakai dashboard"
+}
+\end{lstlisting}
+
+\begin{sloppypar}
+Tambahkan \texttt{"custom/pakai"} ke array \texttt{modules-right} (atau
+\texttt{modules-left}/\texttt{modules-center} sesuai preferensi):
+\end{sloppypar}
+
+\begin{lstlisting}[style=toml]
+"modules-right": [
+    "custom/pakai",
+    "clock",
+    "battery"
+]
+\end{lstlisting}
+
+\subsection{Konfigurasi CSS}
+
+Tambahkan style ke berkas CSS Waybar (\texttt{style.css}) untuk
+pewarnaan berdasarkan status:
+
+\begin{lstlisting}[style=toml]
+#custom-pakai {
+    padding: 0 8px;
+    color: #cdd6f4;
+}
+
+#custom-pakai.ok {
+    color: #a6e3a1;
+}
+
+#custom-pakai.warning {
+    color: #f9e2af;
+}
+
+#custom-pakai.critical {
+    color: #f38ba8;
+}
+
+#custom-pakai.error {
+    color: #fab387;
+}
+\end{lstlisting}
+
+\subsection{Tooltip}
+
+\begin{sloppypar}
+Waybar menampilkan tooltip berisi rincian penggunaan per jendela waktu ketika
+kursor diarahkan ke modul PakAI. Pastikan \texttt{"tooltip": true} sudah
+dikonfigurasi di modul.
+\end{sloppypar}
+
+\begin{tipbox}
+  Jalankan \cmd{pakai setup waybar} untuk mendapatkan cuplikan konfigurasi
+  Waybar yang lengkap, termasuk JSON modul dan CSS.
+\end{tipbox}
+
+\section{Integrasi Shell Prompt}
+
+PakAI juga dapat ditampilkan di prompt shell. Contoh untuk Zsh dengan
+\textbf{Starship}:
+
+\begin{lstlisting}[style=toml]
+# ~/.config/starship.toml
+[custom.pakai]
+command = "pakai tmux"
+when = "pakai daemon status"
+format = "[$output]($style) "
+style = "green"
+\end{lstlisting}

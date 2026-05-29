@@ -1,0 +1,210 @@
+\chapter{Penggunaan Dasar}
+
+\section{Mengapa Memantau Penggunaan AI?}
+
+Berlangganan lebih dari satu layanan AI berarti mengelola beberapa jendela waktu
+kuota yang berbeda: Claude membatasi pesan per 5 jam dan mingguan, OpenAI Codex
+membatasi per 5 jam dan mingguan, sementara OpenCode mencatat biaya token secara
+langsung. Tanpa pemantauan, ada tiga masalah yang sering dialami:
+
+\begin{itemize}
+  \item \textbf{Kuota habis di tengah pekerjaan.} Claude atau Codex berhenti
+        merespons tanpa peringatan sebelumnya, memutus alur kerja saat sedang
+        fokus.
+  \item \textbf{Biaya tak terduga.} Token yang digunakan melalui OpenCode
+        langsung ditagih; tanpa visibilitas, tagihan bulanan bisa mengejutkan.
+  \item \textbf{Konteks berpindah-pindah.} Memeriksa kuota berarti membuka
+        dasbor web masing-masing penyedia, memecah konsentrasi dari terminal.
+\end{itemize}
+
+PakAI menyelesaikan ketiga masalah ini dengan satu perintah di terminal. Status
+semua penyedia tersedia setiap saat — di status bar tmux, di panel Waybar, maupun
+di dashboard TUI layar penuh — tanpa harus meninggalkan lingkungan kerja.
+
+\begin{tipbox}
+  PakAI cocok untuk siapa saja yang menggunakan dua atau lebih layanan AI
+  berbayar dan ingin tahu kapan harus beralih penyedia atau mengistirahatkan sesi
+  agar kuota tidak terbuang.
+\end{tipbox}
+
+\section{Memeriksa Status Penggunaan}
+
+Perintah utama untuk melihat ringkasan penggunaan semua penyedia:
+
+\begin{lstlisting}[style=terminal]
+$ pakai status
+\end{lstlisting}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{pakai-status}
+  \caption{Output \texttt{pakai status}: ringkasan semua penyedia aktif}
+\end{figure}
+
+Output menampilkan:
+\begin{itemize}
+  \item Nama penyedia dan label yang dikonfigurasi.
+  \item Persentase atau biaya penggunaan per jendela waktu (5j, mingguan, bulanan).
+  \item Waktu reset atau sisa waktu jendela.
+  \item Jumlah penyedia aktif dan waktu pembaruan terakhir.
+\end{itemize}
+
+\subsection{Output JSON}
+
+Tambahkan flag \cmd{--json} untuk mendapatkan output dalam format JSON mentah:
+
+\begin{lstlisting}[style=terminal]
+$ pakai status --json
+\end{lstlisting}
+
+\section{Dashboard TUI Interaktif}
+
+Dashboard TUI menampilkan tampilan penuh layar dengan pembaruan langsung:
+
+\begin{lstlisting}[style=terminal]
+$ pakai dashboard
+\end{lstlisting}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.90\linewidth]{pakai-dashboard}
+  \caption{Dashboard TUI PakAI: empat penyedia aktif dengan progress bar
+           dan sisa waktu reset per jendela waktu}
+\end{figure}
+
+Dashboard diperbarui secara otomatis setiap kali daemon menerima data baru dari
+penyedia. Tampilan dibagi per penyedia, masing-masing menampilkan baris untuk
+setiap jendela waktu yang aktif.
+
+\subsection{Membaca tampilan dashboard}
+
+Setiap baris di dalam dashboard mengikuti format berikut:
+
+\begin{center}
+\begin{tabular}{lp{10cm}}
+\toprule
+\textbf{Kolom} & \textbf{Keterangan} \\
+\midrule
+Ikon / kode & Ikon Nerd Font penyedia; fallback dua huruf bila font tidak tersedia. \\[4pt]
+Nama penyedia & Label penyedia, termasuk sub-penyedia OpenCode. \\[4pt]
+Jendela waktu & \texttt{5h} (5 jam), \texttt{w} (mingguan), \texttt{m} (bulanan). \\[4pt]
+Progress bar & Bar 12 segmen menunjukkan proporsi penggunaan saat ini. \\[4pt]
+Persentase & Angka persentase atau biaya dalam dolar (\texttt{\$}). \\[4pt]
+Waktu reset & Sisa waktu sebelum kuota jendela direset. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Kode warna}
+
+PakAI menggunakan tiga warna untuk persentase penggunaan:
+
+\begin{itemize}
+  \item \textbf{Hijau} — penggunaan di bawah ambang peringatan (aman).
+  \item \textbf{Kuning} — mendekati batas; pertimbangkan untuk beralih penyedia
+        atau mengurangi frekuensi permintaan.
+  \item \textbf{Merah} — mendekati atau melebihi batas; kuota hampir habis.
+\end{itemize}
+
+Ambang kuning dan merah dapat dikonfigurasi melalui \cmd{pakai config set}
+(lihat Bab~\ref{ch:konfigurasi-lanjutan}).
+
+\subsection{Kapan dashboard berguna}
+
+Dashboard layar penuh paling berguna dalam skenario berikut:
+
+\begin{itemize}
+  \item \textbf{Sebelum sesi panjang}: periksa penyedia mana yang masih punya
+        kuota cukup sebelum memulai pekerjaan berat.
+  \item \textbf{Saat jendela waktu hampir reset}: pantau kolom \textit{resets in}
+        untuk memilih waktu terbaik memulai ulang sesi.
+  \item \textbf{Membandingkan biaya}: lihat akumulasi biaya dolar OpenCode
+        berdampingan dengan kuota pesan Claude dan Codex.
+  \item \textbf{Debugging penyedia}: tekan \texttt{d} untuk melihat JSON mentah
+        yang dikirim setiap penyedia, berguna saat ada anomali data.
+\end{itemize}
+
+\textbf{Tombol keyboard:}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Tombol} & \textbf{Fungsi} \\
+\midrule
+\texttt{q} & Keluar dari dashboard \\
+\texttt{r} & Muat ulang data secara manual \\
+\texttt{d} & Aktifkan/nonaktifkan mode debug (tampilkan JSON mentah) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{infobox}
+  Jika daemon belum berjalan, jalankan \cmd{pakai daemon start} terlebih dahulu
+  sebelum membuka dashboard.
+\end{infobox}
+
+\section{Output untuk Tmux}
+
+Perintah \cmd{pakai tmux} menghasilkan string ringkas untuk status bar tmux:
+
+\begin{lstlisting}[style=terminal]
+$ pakai tmux
+  7% |  8% |  $0.00
+\end{lstlisting}
+
+Output menggunakan ikon Nerd Font untuk setiap penyedia. Pastikan terminal
+menggunakan font yang mendukung Nerd Font.
+
+\section{Output untuk Waybar}
+
+Perintah \cmd{pakai waybar} menghasilkan JSON untuk modul kustom Waybar:
+
+\begin{lstlisting}[style=terminal]
+$ pakai waybar
+\end{lstlisting}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{pakai-waybar}
+  \caption{Output JSON dari \texttt{pakai waybar}}
+\end{figure}
+
+Format output JSON:
+\begin{lstlisting}[style=toml]
+{
+  "text": "<teks tampilan>",
+  "tooltip": "<detail per penyedia>",
+  "class": "ok|warning|critical|error",
+  "percentage": 0
+}
+\end{lstlisting}
+
+\section{Men-debug Penyedia}
+
+Untuk memeriksa detail data satu penyedia tertentu:
+
+\begin{lstlisting}[style=terminal]
+$ pakai provider debug claude
+$ pakai provider debug opencode
+$ pakai provider debug openai
+\end{lstlisting}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.75\linewidth]{pakai-provider-debug}
+  \caption{Output \texttt{pakai provider debug claude}}
+\end{figure}
+
+\section{Completion Shell}
+
+Aktifkan pelengkapan otomatis perintah (tab completion) untuk shell Anda:
+
+\begin{lstlisting}[style=terminal]
+# Bash
+$ pakai completion bash >> ~/.bashrc
+
+# Zsh
+$ pakai completion zsh >> ~/.zshrc
+
+# Fish
+$ pakai completion fish > ~/.config/fish/completions/pakai.fish
+\end{lstlisting}

@@ -1,0 +1,58 @@
+\chapter{Persyaratan Sistem}
+
+\section{Sistem Operasi}
+
+PakAI dirancang untuk berjalan di lingkungan Unix dan Unix-like. Sistem yang didukung:
+
+\begin{itemize}
+  \item \textbf{Linux} (Ubuntu, Debian, Fedora, Arch, NixOS, dan distribusi lainnya)
+  \item \textbf{macOS} (Ventura, Sonoma, Sequoia, dan versi lebih baru)
+  \item \textbf{WSL2} (Windows Subsystem for Linux 2) di Windows 10/11
+\end{itemize}
+
+\section{Perangkat Lunak yang Dibutuhkan}
+
+\subsection{Go (untuk build dari kode sumber)}
+
+Diperlukan Go versi \textbf{1.21 atau lebih baru} jika ingin melakukan kompilasi
+sendiri dari kode sumber.
+
+\begin{lstlisting}[style=terminal]
+$ go version
+go version go1.25.0 linux/amd64
+\end{lstlisting}
+
+Unduh Go dari \url{https://go.dev/dl/} atau gunakan manajer versi seperti
+\textbf{asdf}, \textbf{mise}, atau \textbf{nix}.
+
+\subsection{Penyedia AI (opsional, sesuai kebutuhan)}
+
+Pasang dan autentikasi penyedia yang ingin dipantau:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Penyedia} & \textbf{Perangkat} & \textbf{Autentikasi} \\
+\midrule
+Claude & Claude Code CLI & \cmd{claude login} \\
+OpenAI Codex & Codex CLI & \cmd{codex login} \\
+OpenCode Go & OpenCode & Langganan di opencode.ai \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Tidak perlu memasang semua penyedia. PakAI akan mendeteksi otomatis penyedia
+mana yang tersedia.
+
+\section{Persyaratan Jaringan}
+
+Semua penyedia yang didukung memerlukan koneksi internet:
+
+\begin{itemize}
+  \item \textbf{Claude} dan \textbf{OpenAI Codex} memerlukan koneksi internet untuk
+        mengambil data penggunaan melalui API OAuth.
+  \item \textbf{OpenCode Go} memerlukan koneksi internet untuk menjalankan sesi
+        OpenCode CLI. PakAI sendiri membaca data penggunaan dari database lokal
+        yang dibuat oleh OpenCode, tetapi OpenCode CLI membutuhkan jaringan saat
+        digunakan.
+\end{itemize}

@@ -1,0 +1,228 @@
+\documentclass[12pt,a4paper]{book}
+
+% Encoding & language
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[indonesian]{babel}
+
+% Page layout
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=2.8cm,right=2.5cm]{geometry}
+
+% Fonts
+\usepackage{lmodern}
+
+% Graphics
+\usepackage{graphicx}
+\graphicspath{{images/}}
+
+% Colors and boxes
+\usepackage[dvipsnames,svgnames,x11names]{xcolor}
+\usepackage[most]{tcolorbox}
+
+% Code listings
+\usepackage{listings}
+
+% Tables
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+
+% Headers/footers
+\usepackage{fancyhdr}
+
+% URL/path breaking
+\usepackage[hyphens]{url}
+
+% Misc
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{emptypage}
+
+% Allow extra stretch before declaring overfull
+\setlength{\emergencystretch}{3em}
+
+% Hyperlinks (load last)
+\usepackage[hidelinks,unicode,
+  pdftitle={Buku Manual PakAI},
+  pdfauthor={Dian Hanifudin Subhi, Dhebys Suryani Hormansyah, Agung Nugroho Pramudhita, Sofyan Noor Arief},
+  pdfsubject={Panduan Pengguna PakAI},
+  pdfkeywords={pakai, AI, usage tracker}
+]{hyperref}
+
+% ─── Colors ─────────────────────────────────────────────────────────────────
+\definecolor{termbg}{HTML}{1e1e2e}
+\definecolor{termfg}{HTML}{cdd6f4}
+\definecolor{termsubtext}{HTML}{6c7086}
+\definecolor{termsurface}{HTML}{313244}
+\definecolor{coverpurple}{HTML}{cba6f7}
+\definecolor{covergreen}{HTML}{a6e3a1}
+\definecolor{infocolor}{HTML}{1d3557}
+\definecolor{warningcolor}{HTML}{f4a261}
+\definecolor{tipcolor}{HTML}{2d6a4f}
+\definecolor{cmdcolor}{HTML}{2b2d42}
+
+% ─── tcolorbox styles ────────────────────────────────────────────────────────
+\tcbuselibrary{breakable,skins}
+
+\newtcolorbox{infobox}[1][]{
+  enhanced, breakable,
+  colback=blue!5!white, colframe=blue!60!black,
+  title={\textbf{Informasi}},
+  fonttitle=\small\bfseries,
+  #1
+}
+
+\newtcolorbox{warningbox}[1][]{
+  enhanced, breakable,
+  colback=orange!10!white, colframe=orange!80!black,
+  title={\textbf{Perhatian}},
+  fonttitle=\small\bfseries,
+  #1
+}
+
+\newtcolorbox{tipbox}[1][]{
+  enhanced, breakable,
+  colback=green!8!white, colframe=green!60!black,
+  title={\textbf{Tips}},
+  fonttitle=\small\bfseries,
+  #1
+}
+
+% ─── Listings (code blocks) ──────────────────────────────────────────────────
+\lstdefinestyle{terminal}{
+  backgroundcolor=\color{termbg},
+  basicstyle=\ttfamily\small\color{termfg},
+  breaklines=true,
+  breakatwhitespace=true,
+  columns=fullflexible,
+  keepspaces=true,
+  frame=none,
+  xleftmargin=12pt,
+  xrightmargin=12pt,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+
+\lstdefinestyle{toml}{
+  backgroundcolor=\color{gray!10},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{gray!50},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+}
+
+% Shorthand for inline commands
+\newcommand{\cmd}[1]{\texttt{\small\colorbox{gray!15}{#1}}}
+
+% ─── Headers / Footers ───────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\small\thepage}
+\fancyhead[LO]{\small\nouppercase{\rightmark}}
+\fancyhead[RE]{\small\nouppercase{\leftmark}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\begin{document}
+
+\frontmatter
+
+% ─── Cover page ──────────────────────────────────────────────────────────────
+\begin{titlepage}
+\newgeometry{margin=0pt}
+\pagecolor{termbg}
+\color{termfg}
+\setlength{\parindent}{0pt}
+\centering
+
+\vspace*{2.2cm}
+
+% Terminal prompt above screenshot — sets the scene
+{\small\ttfamily\color{termsubtext}\$ pakai dashboard\par}
+
+\vspace{0.45cm}
+
+% Live dashboard screenshot
+\includegraphics[width=0.58\linewidth]{pakai-dashboard}
+
+\vspace{1.5cm}
+
+% Tool name — the main title
+{\fontsize{58}{66}\selectfont\bfseries\sffamily\color{termfg} PakAI\par}
+
+\vspace{0.5cm}
+
+% Tagline: casual, not formal
+{\large\color{termsubtext} pantau semua AI-mu, dari terminal\par}
+
+\vfill
+
+% Supported providers — breaks the gap and shows scope at a glance
+{\small\ttfamily\color{termsubtext}
+  claude \enspace\textbullet\enspace codex \enspace\textbullet\enspace opencode
+\par}
+
+\vspace{0.3cm}
+
+{\footnotesize\color{termsurface}
+  multi-provider \enspace\textbullet\enspace
+  real-time \enspace\textbullet\enspace
+  open source
+\par}
+
+\vspace{1.4cm}
+
+% Thin separator
+{\color{termsurface}\rule{0.40\linewidth}{0.4pt}\par}
+
+\vspace{0.6cm}
+
+% Authors — informal bullet list on two lines
+{\small\color{termsubtext}
+  Dian Hanifudin Subhi \enspace\textbullet\enspace Dhebys Suryani Hormansyah \\[0.25em]
+  Agung Nugroho Pramudhita \enspace\textbullet\enspace Sofyan Noor Arief\par
+}
+
+\vspace{0.4cm}
+
+{\footnotesize\color{termsubtext} v1.0 \enspace\textbullet\enspace Mei 2026\par}
+
+\vspace*{1.8cm}
+
+\end{titlepage}
+\restoregeometry
+\pagecolor{white}
+\color{black}
+
+% ─── Colophon ────────────────────────────────────────────────────────────────
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{center}
+  \small
+  PakAI adalah alat bantu pemantau penggunaan langganan AI yang bersifat \\
+  open-source dan gratis digunakan.\\[1em]
+  \url{https://github.com/dhanifudin/pakai}
+\end{center}
+\vspace*{\fill}
+
+\tableofcontents
+\clearpage
+
+\mainmatter
+
+\include{chapters/01-pendahuluan}
+\include{chapters/02-persyaratan}
+\include{chapters/03-instalasi}
+\include{chapters/04-konfigurasi-awal}
+\include{chapters/05-penggunaan}
+\include{chapters/06-integrasi}
+\include{chapters/07-konfigurasi-lanjutan}
+\include{chapters/08-referensi-perintah}
+\include{chapters/09-pemecahan-masalah}
+
+\backmatter
+\end{document}

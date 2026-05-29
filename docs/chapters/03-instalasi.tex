@@ -1,0 +1,89 @@
+\chapter{Instalasi}
+
+\section{Metode 1: Install dari Go (Direkomendasikan)}
+
+Cara termudah adalah menggunakan \cmd{go install} untuk mengunduh dan mengkompilasi
+PakAI secara langsung:
+
+\begin{lstlisting}[style=terminal]
+$ go install github.com/dhanifudin/pakai/cmd/pakai@latest
+\end{lstlisting}
+
+Pastikan direktori \texttt{\$GOPATH/bin} (biasanya \texttt{\textasciitilde/go/bin})
+sudah ada di \texttt{\$PATH}:
+
+\begin{lstlisting}[style=terminal]
+# Tambahkan ke ~/.bashrc atau ~/.zshrc
+export PATH="$PATH:$HOME/go/bin"
+\end{lstlisting}
+
+\section{Metode 2: Build dari Kode Sumber}
+
+\subsection{Kloning repositori}
+
+\begin{lstlisting}[style=terminal]
+$ git clone https://github.com/dhanifudin/pakai.git
+$ cd pakai
+\end{lstlisting}
+
+\subsection{Kompilasi}
+
+\begin{lstlisting}[style=terminal]
+$ go build -ldflags="-s -w" -o pakai ./cmd/pakai
+\end{lstlisting}
+
+Atau gunakan Makefile yang sudah disediakan:
+
+\begin{lstlisting}[style=terminal]
+$ make build
+\end{lstlisting}
+
+\subsection{Pasang ke PATH}
+
+\begin{lstlisting}[style=terminal]
+$ sudo mv pakai /usr/local/bin/
+# atau ke direktori lokal tanpa sudo:
+$ mv pakai ~/.local/bin/
+\end{lstlisting}
+
+\section{Metode 3: Binary Release}
+
+Binary siap pakai tersedia di halaman \textit{Releases} GitHub untuk arsitektur
+Linux AMD64 dan ARM64:
+
+\begin{enumerate}
+  \item Kunjungi \url{https://github.com/dhanifudin/pakai/releases}
+  \item Unduh arsip yang sesuai, misalnya:\\
+        \texttt{pakai\_1.0.0\_linux\_amd64.tar.gz}
+  \item Ekstrak dan pindahkan binary:
+\end{enumerate}
+
+\begin{lstlisting}[style=terminal]
+$ tar -xzf pakai_1.0.0_linux_amd64.tar.gz
+$ chmod +x pakai
+$ mv pakai ~/.local/bin/
+\end{lstlisting}
+
+\section{Verifikasi Instalasi}
+
+Setelah instalasi, mulai daemon lalu jalankan perintah status untuk memverifikasi
+PakAI berjalan dengan benar:
+
+\begin{lstlisting}[style=terminal]
+$ pakai daemon start
+$ pakai status
+\end{lstlisting}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{pakai-status}
+  \caption{Output \texttt{pakai status} setelah instalasi berhasil}
+\end{figure}
+
+Jika perintah tidak ditemukan, pastikan direktori instalasi ada di \texttt{\$PATH}.
+
+\begin{warningbox}
+  Jika menggunakan \textbf{asdf} atau \textbf{mise} sebagai manajer versi Go,
+  pastikan shim untuk \texttt{pakai} sudah diperbarui setelah instalasi.
+  Jalankan \cmd{asdf reshim golang} atau \cmd{mise reshim} setelah proses instalasi.
+\end{warningbox}
