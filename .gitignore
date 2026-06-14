@@ -18,8 +18,9 @@ coverage.out
 # OS / editor noise
 .DS_Store
 
-# BMad user-local overrides
-_bmad/**/*.user.toml
+# BMad workflow files (local tooling, not part of source)
+_bmad/
+_bmad-output/
 
 # LaTeX build artifacts
 docs/*.aux
