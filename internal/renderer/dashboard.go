@@ -221,6 +221,9 @@ func renderDashboardRow(u *schema.Usage) string {
 
 	lines = append(lines, "  "+providerStyle.Render(header))
 	for _, w := range u.WindowsOrDefault() {
+		if w.Pct() < 0 && w.Used == 0 {
+			continue
+		}
 		lines = append(lines, renderDashboardWindowRow(w))
 	}
 	if u.Warning != "" {
@@ -262,6 +265,9 @@ func renderDashboardRowIndented(u *schema.Usage, label, indent string) string {
 
 	lines = append(lines, indent+providerStyle.Render(header))
 	for _, w := range u.WindowsOrDefault() {
+		if w.Pct() < 0 && w.Used == 0 {
+			continue
+		}
 		lines = append(lines, renderDashboardWindowRowIndented(w, indent+"  "))
 	}
 	if u.Warning != "" {
