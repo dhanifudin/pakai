@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 )
 
 func testdataPath(t *testing.T, name string) string {
@@ -19,6 +20,9 @@ func TestFetch_Valid(t *testing.T) {
 	p.readerFactory = func() (io.ReadCloser, error) {
 		return os.Open(path)
 	}
+	// Pin clock to May 2026 so the testdata dates (2026-05-01, 2026-05-02) fall
+	// in the "current month" regardless of when the test runs.
+	p.now = func() time.Time { return time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC) }
 
 	ctx := context.Background()
 	got, err := p.Fetch(ctx)

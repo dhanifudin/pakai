@@ -189,6 +189,10 @@ func newStatusCmd() *cobra.Command {
 			if jsonOutput {
 				return statusJSON()
 			}
+			port := config.GetDaemonPort()
+			if h, err := client.New(port).GetHealth(); err == nil && client.IsStale(version, h) {
+				fmt.Fprintln(os.Stderr, "⚠ daemon is running an older build — run 'pakai daemon restart' to pick up the new binary")
+			}
 			usages, refreshedAt, err := fetchUsages()
 			if err != nil {
 				return err
@@ -281,6 +285,7 @@ func newDaemonCmd() *cobra.Command {
 	daemonCmd.AddCommand(
 		newDaemonStartCmd(),
 		newDaemonStopCmd(),
+		newDaemonRestartCmd(),
 		newDaemonStatusCmd(),
 	)
 
@@ -351,7 +356,7 @@ func newDaemonStartCmd() *cobra.Command {
 }
 
 func runDaemonForeground(port int) error {
-	srv, err := daemon.NewServer(port)
+	srv, err := daemon.NewServer(port, version)
 	if err != nil {
 		return fmt.Errorf("failed to create daemon server: %w", err)
 	}
@@ -429,6 +434,40 @@ func newDaemonStatusCmd() *cobra.Command {
 			pid, _ := daemon.GetPID()
 			uptimeDur := time.Duration(h.UptimeSeconds) * time.Second
 			fmt.Printf("Daemon: running (PID %d, port %d, uptime %s)\n", pid, port, uptimeDur)
+			if client.IsStale(version, h) {
+				fmt.Fprintln(os.Stderr, "⚠ daemon is running an older build — run 'pakai daemon restart' to pick up the new binary")
+			}
+			return nil
+		},
+	}
+}
+
+func newDaemonRestartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the background daemon",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			port := config.GetDaemonPort()
+
+			pid, err := daemon.GetPID()
+			if err == nil {
+				proc, err := os.FindProcess(pid)
+				if err == nil {
+					_ = proc.Signal(syscall.SIGTERM)
+					deadline := time.Now().Add(5 * time.Second)
+					for time.Now().Before(deadline) {
+						if err := proc.Signal(syscall.Signal(0)); err != nil {
+							break
+						}
+						time.Sleep(100 * time.Millisecond)
+					}
+				}
+			}
+
+			if err := client.EnsureRunning(port); err != nil {
+				return fmt.Errorf("failed to start daemon: %w", err)
+			}
+			fmt.Println("Daemon restarted.")
 			return nil
 		},
 	}

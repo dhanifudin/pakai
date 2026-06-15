@@ -26,19 +26,21 @@ import (
 
 // Server is the HTTP daemon server.
 type Server struct {
-	port      int
-	startTime time.Time
-	loop      *RefreshLoop
-	cache     *cache.Cache
-	hub       *Hub
-	watcher   *config.Watcher
+	port        int
+	startTime   time.Time
+	version     string
+	binaryMtime time.Time
+	loop        *RefreshLoop
+	cache       *cache.Cache
+	hub         *Hub
+	watcher     *config.Watcher
 
 	httpServer *http.Server
 	pidFile    string
 }
 
 // NewServer creates a new daemon server.
-func NewServer(port int) (*Server, error) {
+func NewServer(port int, version string) (*Server, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -69,13 +71,22 @@ func NewServer(port int) (*Server, error) {
 
 	h := NewHub()
 
+	var binaryMtime time.Time
+	if exe, err := os.Executable(); err == nil {
+		if st, err := os.Stat(exe); err == nil {
+			binaryMtime = st.ModTime()
+		}
+	}
+
 	s := &Server{
-		port:      port,
-		startTime: time.Now(),
-		cache:     c,
-		hub:       h,
-		pidFile:   pidFile,
-		watcher:   config.NewWatcher(),
+		port:        port,
+		startTime:   time.Now(),
+		version:     version,
+		binaryMtime: binaryMtime,
+		cache:       c,
+		hub:         h,
+		pidFile:     pidFile,
+		watcher:     config.NewWatcher(),
 	}
 
 	provs := s.buildProviders()
@@ -338,6 +349,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"connections":    connections,
 		"port":           s.port,
 		"providers":      providers,
+		"version":        s.version,
+		"binary_mtime":   s.binaryMtime,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

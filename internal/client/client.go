@@ -161,11 +161,33 @@ func PIDFilePath() string {
 
 // HealthResponse represents the response from /health.
 type HealthResponse struct {
-	Status        string   `json:"status"`
-	UptimeSeconds int      `json:"uptime_seconds"`
-	Connections   int      `json:"connections"`
-	Port          int      `json:"port"`
-	Providers     []string `json:"providers"`
+	Status        string    `json:"status"`
+	UptimeSeconds int       `json:"uptime_seconds"`
+	Connections   int       `json:"connections"`
+	Port          int       `json:"port"`
+	Providers     []string  `json:"providers"`
+	Version       string    `json:"version"`
+	BinaryMtime   time.Time `json:"binary_mtime"`
+}
+
+// IsStale reports whether the running daemon was built from an older binary than
+// the currently installed one. It checks both the version string (for tagged
+// releases) and the executable mtime (for dev builds where version is always
+// "dev"). A 2s grace period avoids false positives from filesystem timestamp
+// imprecision.
+func IsStale(current string, h *HealthResponse) bool {
+	if current != h.Version {
+		return true
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	st, err := os.Stat(exe)
+	if err != nil {
+		return false
+	}
+	return st.ModTime().After(h.BinaryMtime.Add(2 * time.Second))
 }
 
 // GetHealth returns the health status of the daemon.
