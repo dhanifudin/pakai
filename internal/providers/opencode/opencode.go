@@ -183,6 +183,12 @@ GROUP BY provider;`
 	}
 
 	sharedLimit := config.GetProviderLimit("opencode-go")
+	// sharedMonthly is the effective shared budget cap; always > 0 so real-cost
+	// sub-providers without a per-sub configured limit can still compute a %.
+	sharedMonthly := sharedLimit
+	if sharedMonthly <= 0 {
+		sharedMonthly = goMonthLimit
+	}
 	totalRealCost := 0.0
 	totalTokens := 0.0
 	for _, row := range providerRows {
@@ -214,6 +220,12 @@ GROUP BY provider;`
 				used = estimateSharedCost(totalRealCost, row.MonthTokens, totalTokens)
 				warning = "estimated from shared opencode subscription"
 			}
+		}
+
+		// Real-cost sub-providers with no per-sub limit configured fall back to
+		// the shared monthly budget so per-window percentages can be computed.
+		if !isZeroCost && limit <= 0 {
+			limit = sharedMonthly
 		}
 
 		windows := buildUsageWindows(now, periodStart, end.Add(-time.Second), limit, row, totalRealCost, totalTokens, isZeroCost && sharedLimit > 0)

@@ -125,31 +125,16 @@ func padWindowLabel(label string) string {
 	return label + " "
 }
 
-func renderWindowDetail(w schema.UsageWindow) string {
-	label := shortWindowLabel(w)
-	pct := w.Pct()
-	reset := formatResetAt(w.ResetAt)
-
-	if w.Unit == "percent" && w.Limit == 100 {
-		if reset != "" {
-			return fmt.Sprintf("%s: %.0f%% (%s)", label, pct, reset)
-		}
-		return fmt.Sprintf("%s: %.0f%%", label, pct)
+func progressBar(pct float64, width int) string {
+	filled := int(pct / 100.0 * float64(width))
+	if filled > width {
+		filled = width
 	}
-
-	if pct >= 0 {
-		detail := fmt.Sprintf("%s: %.0f%% (%s of %s)", label, pct, w.FormatUsed(), formatWindowLimit(w))
-		if reset != "" {
-			detail += fmt.Sprintf(" (%s)", reset)
-		}
-		return detail
+	if filled < 0 {
+		filled = 0
 	}
-
-	detail := fmt.Sprintf("%s: %s", label, w.FormatUsed())
-	if reset != "" {
-		detail += fmt.Sprintf(" (%s)", reset)
-	}
-	return detail
+	empty := width - filled
+	return strings.Repeat("█", filled) + strings.Repeat("░", empty)
 }
 
 func shortWindowLabel(w schema.UsageWindow) string {

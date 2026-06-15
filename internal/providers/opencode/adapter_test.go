@@ -166,6 +166,73 @@ func TestFetchAll_DBError(t *testing.T) {
 	}
 }
 
+func TestFetchAll_RealCostProviderGetsThreeWindows(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	db := newTestDB(t)
+	start, _ := currentMonthMillis(t)
+
+	// Place spend inside both the 5h and weekly windows.
+	now := time.Now()
+	recentMillis := now.Add(-1*time.Hour).UnixMilli()
+	mid := start + 1000
+
+	err := testutil.SeedDB(db, []testutil.MessageRow{
+		// Older spend — counts for month and week, not 5h
+		{ID: "m1", SessionID: "s1", CreatedAt: mid, UpdatedAt: mid, Role: "assistant", Cost: 6.0, Provider: "opencode-go", TokensIn: 100, TokensOut: 100},
+		// Recent spend — counts for month, week, and 5h
+		{ID: "m2", SessionID: "s1", CreatedAt: recentMillis, UpdatedAt: recentMillis, Role: "assistant", Cost: 6.0, Provider: "opencode-go", TokensIn: 100, TokensOut: 100},
+	})
+	if err != nil {
+		t.Fatalf("SeedDB: %v", err)
+	}
+
+	p := NewFromDB(db)
+	ctx := context.Background()
+	got, err := p.FetchAll(ctx)
+	if err != nil {
+		t.Fatalf("FetchAll error = %v, want nil", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("got %d providers, want 1", len(got))
+	}
+
+	u := got[0]
+	if u.Provider != "opencode/opencode-go" {
+		t.Fatalf("got provider %q, want opencode/opencode-go", u.Provider)
+	}
+
+	// Real-cost provider should get 3 windows (5h, weekly, monthly).
+	if len(u.Windows) != 3 {
+		t.Fatalf("got %d windows, want 3 (5h/weekly/monthly)", len(u.Windows))
+	}
+
+	// Limit should fall back to goMonthLimit (60) when not configured.
+	if u.Limit != goMonthLimit {
+		t.Errorf("got Limit = %.2f, want %.2f (goMonthLimit)", u.Limit, goMonthLimit)
+	}
+
+	// Monthly: 12/60 = 20%
+	if math.Abs(u.Pct()-20) > 0.1 {
+		t.Errorf("monthly pct = %.2f, want 20.00", u.Pct())
+	}
+
+	// 5h window: 6/12 = 50%
+	var fiveH *schema.UsageWindow
+	for i := range u.Windows {
+		if u.Windows[i].Key == "5h" {
+			fiveH = &u.Windows[i]
+		}
+	}
+	if fiveH == nil {
+		t.Fatal("missing 5h window")
+	}
+	if math.Abs(fiveH.Pct()-50) > 0.1 {
+		t.Errorf("5h pct = %.2f, want 50.00", fiveH.Pct())
+	}
+}
+
 func TestFetchAll_SharedSubscriptionEstimateForZeroCostProvider(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
