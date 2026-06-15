@@ -21,7 +21,8 @@ func RenderWaybar(usages []*schema.Usage, separator string) string {
 		separator = " | "
 	}
 
-	ordered := orderUsages(usages, nil)
+	standalone, subs := partitionOpencode(usages)
+	ordered := orderUsages(standalone, nil)
 
 	var textParts []string
 	var tooltipParts []string
@@ -62,6 +63,31 @@ func RenderWaybar(usages []*schema.Usage, separator string) string {
 			}
 			tooltipParts = append(tooltipParts, tooltip)
 		}
+	}
+
+	if len(subs) > 0 {
+		pct, cls := opencodeWorst(subs)
+		overallClass = worseClass(overallClass, cls)
+		if pct >= 0 {
+			if pctInt := int(pct); pctInt > overallPct {
+				overallPct = pctInt
+			}
+		}
+
+		textParts = append(textParts, coloredText(renderOpencodeToken(subs), cls))
+
+		// Tooltip: section header + indented sub-provider detail
+		lines := []string{providerIcon("opencode") + " opencode"}
+		for _, u := range subs {
+			tip := renderProviderTooltipAs(u, subLabel(u))
+			if u.Warning != "" {
+				tip += "\nwarning: " + u.Warning
+			}
+			for _, line := range strings.Split(tip, "\n") {
+				lines = append(lines, "  "+line)
+			}
+		}
+		tooltipParts = append(tooltipParts, strings.Join(lines, "\n"))
 	}
 
 	out := WaybarOutput{

@@ -17,6 +17,7 @@ import (
 )
 
 const providerID = "openai"
+const codexLabel = "codex"
 
 const (
 	credentialsFileName = "auth.json"
@@ -83,7 +84,7 @@ func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
 	if err != nil {
 		return &schema.Usage{
 			Provider:    providerID,
-			Label:       providerID,
+			Label:       codexLabel,
 			Status:      schema.StatusError,
 			Error:       err.Error(),
 			RefreshedAt: p.now(),
@@ -92,7 +93,7 @@ func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
 	if len(windows) == 0 {
 		return &schema.Usage{
 			Provider:    providerID,
-			Label:       providerID,
+			Label:       codexLabel,
 			Status:      schema.StatusOK,
 			RefreshedAt: p.now(),
 		}, nil
@@ -100,7 +101,7 @@ func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
 
 	return &schema.Usage{
 		Provider:    providerID,
-		Label:       providerID,
+		Label:       codexLabel,
 		Windows:     windows,
 		Status:      schema.StatusOK,
 		RefreshedAt: p.now(),

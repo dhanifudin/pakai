@@ -58,6 +58,13 @@ func renderProviderTooltip(u *schema.Usage) string {
 	if label == "" {
 		label = u.Provider
 	}
+	return renderProviderTooltipAs(u, label)
+}
+
+// renderProviderTooltipAs is like renderProviderTooltip but uses the given
+// label instead of deriving it from the usage struct. Useful for sub-providers
+// where the label needs to be stripped of its namespace prefix.
+func renderProviderTooltipAs(u *schema.Usage, label string) string {
 	header := label
 	if icon := providerIcon(u.Provider); icon != "" {
 		header = fmt.Sprintf("%s %s", icon, label)

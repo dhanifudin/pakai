@@ -175,9 +175,14 @@ func (m dashboardModel) View() string {
 		sb.WriteString(dimStyle.Render("No data yet..."))
 		sb.WriteString("\n")
 	} else {
-		for _, u := range m.usages {
+		standalone, subs := partitionOpencode(m.usages)
+		for _, u := range standalone {
 			sb.WriteString(renderDashboardRow(u))
 			sb.WriteString("\n\n")
+		}
+		if len(subs) > 0 {
+			sb.WriteString(renderOpencodeDashboardSection(subs))
+			sb.WriteString("\n")
 		}
 	}
 
@@ -225,6 +230,81 @@ func renderDashboardRow(u *schema.Usage) string {
 		lines = append(lines, "    "+dimStyle.Render("mock data"))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// renderOpencodeDashboardSection renders an opencode group header with each
+// sub-provider nested underneath.
+func renderOpencodeDashboardSection(subs []*schema.Usage) string {
+	var lines []string
+	header := providerIcon("opencode") + " opencode"
+	lines = append(lines, "  "+providerStyle.Render(header))
+	for _, u := range subs {
+		lines = append(lines, renderDashboardRowIndented(u, subLabel(u), "    "))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderDashboardRowIndented is like renderDashboardRow but uses an explicit
+// label and indentation prefix, for rendering opencode sub-providers.
+func renderDashboardRowIndented(u *schema.Usage, label, indent string) string {
+	var lines []string
+	icon := providerIcon(u.Provider)
+	header := label
+	if icon != "" {
+		header = icon + " " + label
+	}
+
+	if u.Status == schema.StatusError {
+		lines = append(lines, indent+providerStyle.Render(header))
+		lines = append(lines, indent+"  "+errorStyle.Render("error: "+u.Error))
+		return strings.Join(lines, "\n")
+	}
+
+	lines = append(lines, indent+providerStyle.Render(header))
+	for _, w := range u.WindowsOrDefault() {
+		lines = append(lines, renderDashboardWindowRowIndented(w, indent+"  "))
+	}
+	if u.Warning != "" {
+		lines = append(lines, indent+"  "+warningNoteStyle.Render("note: "+u.Warning))
+	}
+	if u.Status == schema.StatusMock {
+		lines = append(lines, indent+"  "+dimStyle.Render("mock data"))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderDashboardWindowRowIndented is like renderDashboardWindowRow but with
+// a custom indentation prefix.
+func renderDashboardWindowRowIndented(w schema.UsageWindow, indent string) string {
+	label := padWindowLabel(shortWindowLabel(w))
+	pct := w.Pct()
+	reset := formatResetAt(w.ResetAt)
+
+	if pct < 0 {
+		line := fmt.Sprintf("%s%s  %s", indent, label, subtleStyle.Render(w.FormatUsed()))
+		if reset != "" {
+			line += "  " + dimStyle.Render(reset)
+		}
+		return line
+	}
+
+	bar := coloredProgressBar(pct, 12)
+	pctStr := fmt.Sprintf("%3.0f%%", pct)
+	var pctStyled string
+	switch {
+	case pct >= 80:
+		pctStyled = criticalStyle.Render(pctStr)
+	case pct >= 50:
+		pctStyled = warningStyle.Render(pctStr)
+	default:
+		pctStyled = okStyle.Render(pctStr)
+	}
+	line := fmt.Sprintf("%s%s  %s %s", indent, label, bar, pctStyled)
+	meta := fmt.Sprintf("%s / %s", w.FormatUsed(), formatWindowLimit(w))
+	if reset != "" {
+		meta += "  " + reset
+	}
+	return line + "  " + subtleStyle.Render(meta)
 }
 
 func renderDashboardWindowRow(w schema.UsageWindow) string {

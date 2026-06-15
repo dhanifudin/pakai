@@ -14,7 +14,8 @@ func RenderTmux(usages []*schema.Usage, separator string) string {
 		separator = " | "
 	}
 
-	ordered := orderUsages(usages, nil)
+	standalone, subs := partitionOpencode(usages)
+	ordered := orderUsages(standalone, nil)
 
 	var parts []string
 	for _, u := range ordered {
@@ -26,7 +27,29 @@ func RenderTmux(usages []*schema.Usage, separator string) string {
 		}
 	}
 
+	if len(subs) > 0 {
+		parts = append(parts, renderOpencodeToken(subs))
+	}
+
 	return strings.Join(parts, separator)
+}
+
+// renderOpencodeToken collapses all opencode sub-providers into a single
+// token showing the worst percentage, or a summed cost when no limits exist.
+func renderOpencodeToken(subs []*schema.Usage) string {
+	icon := providerIcon("opencode")
+	pct, _ := opencodeWorst(subs)
+	if pct >= 0 {
+		return fmt.Sprintf("%s %.0f%%", icon, pct)
+	}
+	// No limits — fall back to summed USD cost across subs.
+	var totalCost float64
+	for _, u := range subs {
+		if u.Unit == "usd" {
+			totalCost += u.Used
+		}
+	}
+	return icon + " " + compactUsed(totalCost, "usd")
 }
 
 func renderProviderTmuxCompact(u *schema.Usage) string {
