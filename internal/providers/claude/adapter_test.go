@@ -2,142 +2,73 @@ package claude
 
 import (
 	"context"
-	"io"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/dhanifudin/pakai/internal/schema"
 )
 
-func testdataPath(t *testing.T, name string) string {
-	t.Helper()
-	return "testdata/" + name
-}
+func TestFetch_APIWindows(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 
-func TestFetch_Valid(t *testing.T) {
-	path := testdataPath(t, "stats_valid.json")
+	windows := []schema.UsageWindow{
+		{Key: "5h", Label: "5h", Used: 30, Limit: 100, Unit: "percent"},
+		{Key: "weekly", Label: "weekly", Used: 70, Limit: 100, Unit: "percent"},
+	}
+	cached := cachedUsageWindows{FetchedAt: now, Windows: windows}
+	data, _ := json.Marshal(cached)
+
+	tmp := t.TempDir()
+	cachePath := filepath.Join(tmp, "claude-usage.json")
+	if err := os.WriteFile(cachePath, data, 0600); err != nil {
+		t.Fatalf("failed to seed API cache: %v", err)
+	}
 
 	p := New()
-	p.readerFactory = func() (io.ReadCloser, error) {
-		return os.Open(path)
-	}
-	// Pin clock to May 2026 so the testdata dates (2026-05-01, 2026-05-02) fall
-	// in the "current month" regardless of when the test runs.
-	p.now = func() time.Time { return time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC) }
+	p.apiCachePath = cachePath
+	p.now = func() time.Time { return now }
 
-	ctx := context.Background()
-	got, err := p.Fetch(ctx)
-
+	got, err := p.Fetch(context.Background())
 	if err != nil {
 		t.Fatalf("Fetch() error = %v, want nil", err)
 	}
-
-	wantProvider := providerID
-	if got.Provider != wantProvider {
-		t.Errorf("got Provider = %q, want %q", got.Provider, wantProvider)
+	if string(got.Status) != "ok" {
+		t.Errorf("got Status = %q, want %q", got.Status, "ok")
 	}
-
-	wantStatus := "ok"
-	if string(got.Status) != wantStatus {
-		t.Errorf("got Status = %q, want %q", got.Status, wantStatus)
+	if len(got.Windows) != 2 {
+		t.Fatalf("got %d windows, want 2", len(got.Windows))
 	}
-
-	wantUsed := 350.0
-	if got.Used != wantUsed {
-		t.Errorf("got Used = %.1f, want %.1f", got.Used, wantUsed)
+	for _, w := range got.Windows {
+		if w.Key == "monthly" || w.Unit == "messages" {
+			t.Errorf("unexpected monthly/messages window: %+v", w)
+		}
 	}
-
-	if got.RefreshedAt.IsZero() {
-		t.Error("got RefreshedAt zero, want non-zero timestamp")
+	if got.Windows[0].Key != "5h" {
+		t.Errorf("got windows[0].Key = %q, want %q", got.Windows[0].Key, "5h")
+	}
+	if got.Windows[1].Key != "weekly" {
+		t.Errorf("got windows[1].Key = %q, want %q", got.Windows[1].Key, "weekly")
 	}
 }
 
-func TestFetch_Malformed(t *testing.T) {
-	path := testdataPath(t, "stats_malformed.json")
-
+func TestFetch_Error(t *testing.T) {
+	tmp := t.TempDir()
 	p := New()
-	p.readerFactory = func() (io.ReadCloser, error) {
-		return os.Open(path)
-	}
+	p.credsPath = filepath.Join(tmp, "no-creds.json")
+	p.apiCachePath = filepath.Join(tmp, "no-cache.json")
 
-	ctx := context.Background()
-	got, err := p.Fetch(ctx)
-
+	got, err := p.Fetch(context.Background())
 	if err != nil {
-		t.Fatalf("Fetch() should not return error for malformed JSON: %v", err)
+		t.Fatalf("Fetch() should not return error, got %v", err)
 	}
-
-	wantStatus := "error"
-	if string(got.Status) != wantStatus {
-		t.Errorf("got Status = %q, want %q", got.Status, wantStatus)
-	}
-	if got.Error == "" {
-		t.Error("got Error empty, want non-empty for malformed JSON")
-	}
-}
-
-func TestFetch_MissingFields(t *testing.T) {
-	path := testdataPath(t, "stats_missing_fields.json")
-
-	p := New()
-	p.readerFactory = func() (io.ReadCloser, error) {
-		return os.Open(path)
-	}
-
-	ctx := context.Background()
-	got, err := p.Fetch(ctx)
-
-	if err != nil {
-		t.Fatalf("Fetch() error = %v, want nil", err)
-	}
-
-	wantStatus := "ok"
-	if string(got.Status) != wantStatus {
-		t.Errorf("got Status = %q, want %q", got.Status, wantStatus)
-	}
-
-	wantUsed := 0.0
-	if got.Used != wantUsed {
-		t.Errorf("got Used = %.1f, want %.1f for missing dailyActivity", got.Used, wantUsed)
-	}
-}
-
-func TestFetch_FileNotFound(t *testing.T) {
-	p := New()
-	p.readerFactory = func() (io.ReadCloser, error) {
-		return os.Open("/nonexistent/path/stats-cache.json")
-	}
-
-	ctx := context.Background()
-	got, err := p.Fetch(ctx)
-
-	if err != nil {
-		t.Fatalf("Fetch() should not return error: %v", err)
-	}
-
-	wantStatus := "error"
-	if string(got.Status) != wantStatus {
-		t.Errorf("got Status = %q, want %q", got.Status, wantStatus)
+	if string(got.Status) != "error" {
+		t.Errorf("got Status = %q, want %q", got.Status, "error")
 	}
 	if got.Error == "" {
 		t.Error("got Error empty, want non-empty")
-	}
-}
-
-func TestFetch_PercentNotCapped(t *testing.T) {
-	p := New()
-	p.readerFactory = func() (io.ReadCloser, error) {
-		return os.Open(testdataPath(t, "stats_valid.json"))
-	}
-
-	ctx := context.Background()
-	got, _ := p.Fetch(ctx)
-
-	pct := got.Pct()
-	if pct > 100 {
-		t.Logf("Pct = %.1f (not capped — AC 2 satisfied)", pct)
-	}
-	if got.Used > 0 && got.Limit == 0 {
-		t.Logf("no limit configured, Pct = %.1f", pct)
 	}
 }
 

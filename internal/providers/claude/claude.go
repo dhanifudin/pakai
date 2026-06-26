@@ -5,14 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/dhanifudin/pakai/internal/config"
 	"github.com/dhanifudin/pakai/internal/schema"
 )
 
@@ -28,35 +26,13 @@ const (
 	refreshBuffer       = 5 * time.Minute
 )
 
-// statsCache represents the structure of ~/.claude/stats-cache.json
-type statsCache struct {
-	Version          int                   `json:"version"`
-	LastComputedDate string                `json:"lastComputedDate"`
-	DailyActivity    []dailyActivity       `json:"dailyActivity"`
-	ModelUsage       map[string]modelUsage `json:"modelUsage"`
-}
-
-type dailyActivity struct {
-	Date          string `json:"date"`
-	MessageCount  int    `json:"messageCount"`
-	SessionCount  int    `json:"sessionCount"`
-	ToolCallCount int    `json:"toolCallCount"`
-}
-
-type modelUsage struct {
-	InputTokens  int     `json:"inputTokens"`
-	OutputTokens int     `json:"outputTokens"`
-	CostUSD      float64 `json:"costUSD"`
-}
-
 // Provider implements the providers.Provider interface for Claude.
 type Provider struct {
-	cachePath     string
-	credsPath     string
-	apiCachePath  string
-	readerFactory func() (io.ReadCloser, error)
-	httpClient    *http.Client
-	now           func() time.Time
+	cachePath    string
+	credsPath    string
+	apiCachePath string
+	httpClient   *http.Client
+	now          func() time.Time
 
 	mu             sync.Mutex
 	lastAPIAttempt time.Time
@@ -98,18 +74,6 @@ func New() *Provider {
 	}
 }
 
-// NewWithPath creates a new Claude provider with a custom cache path (for testing).
-func NewWithPath(path string) *Provider {
-	home, _ := os.UserHomeDir()
-	return &Provider{
-		cachePath:    path,
-		credsPath:    filepath.Join(home, ".claude", credentialsFileName),
-		apiCachePath: filepath.Join(home, ".cache", "pakai", "claude-usage.json"),
-		httpClient:   &http.Client{Timeout: 15 * time.Second},
-		now:          time.Now,
-	}
-}
-
 // ID returns the provider ID.
 func (p *Provider) ID() string {
 	return providerID
@@ -120,90 +84,24 @@ func (p *Provider) CachePath() string {
 	return p.cachePath
 }
 
-// Fetch reads the Claude stats cache and returns the current month's usage.
 func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
-	monthlyUsage, statsErr := p.fetchMonthlyUsage(ctx)
-	var apiWindows []schema.UsageWindow
-	var apiErr error
-	if p.readerFactory == nil {
-		apiWindows, apiErr = p.fetchAPIWindows(ctx)
-	}
-
-	if monthlyUsage != nil {
-		if len(apiWindows) > 0 {
-			monthlyWindow := schema.UsageWindow{
-				Key:         "monthly",
-				Label:       "monthly",
-				PeriodStart: monthlyUsage.PeriodStart,
-				PeriodEnd:   monthlyUsage.PeriodEnd,
-				Used:        monthlyUsage.Used,
-				Limit:       monthlyUsage.Limit,
-				Unit:        monthlyUsage.Unit,
-			}
-			monthlyUsage.Windows = append(apiWindows, monthlyWindow)
-		} else if apiErr != nil {
-			monthlyUsage.Warning = "live percentage unavailable"
-		}
-		return monthlyUsage, nil
-	}
-
-	if len(apiWindows) > 0 {
-		now := p.now()
-		return &schema.Usage{
-			Provider:    providerID,
-			Label:       providerID,
-			Windows:     apiWindows,
-			Status:      schema.StatusOK,
-			RefreshedAt: now,
-		}, nil
-	}
-
-	if statsErr != nil {
-		return statsErr, nil
-	}
-
-	return p.errorUsage(ctx, "no Claude usage data available"), nil
-}
-
-func (p *Provider) fetchMonthlyUsage(ctx context.Context) (*schema.Usage, *schema.Usage) {
-	if p.readerFactory != nil {
-		return p.fetchFromFactory(ctx)
-	}
-	return p.fetchFromPath(ctx)
-}
-
-func (p *Provider) fetchFromFactory(ctx context.Context) (*schema.Usage, *schema.Usage) {
-	rc, err := p.readerFactory()
+	windows, err := p.fetchAPIWindows(ctx)
 	if err != nil {
-		errUsage := p.errorUsage(ctx, fmt.Sprintf("failed to open stats cache: %v", err))
-		return nil, errUsage
+		return p.errorUsage(ctx, err.Error()), nil
 	}
-	defer rc.Close()
-
-	data, err := io.ReadAll(rc)
-	if err != nil {
-		errUsage := p.errorUsage(ctx, fmt.Sprintf("failed to read stats cache: %v", err))
-		return nil, errUsage
+	if len(windows) == 0 {
+		return p.errorUsage(ctx, "no Claude usage data available"), nil
 	}
-
-	return p.parseStats(ctx, data)
+	return &schema.Usage{
+		Provider:    providerID,
+		Label:       providerID,
+		Windows:     windows,
+		Status:      schema.StatusOK,
+		RefreshedAt: p.now(),
+	}, nil
 }
 
-func (p *Provider) fetchFromPath(ctx context.Context) (*schema.Usage, *schema.Usage) {
-	data, err := os.ReadFile(p.cachePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			errUsage := p.errorUsage(ctx, "Claude stats cache not found — ensure Claude Code is running")
-			return nil, errUsage
-		}
-		errUsage := p.errorUsage(ctx, fmt.Sprintf("failed to read stats cache: %v", err))
-		return nil, errUsage
-	}
-
-	return p.parseStats(ctx, data)
-}
-
-func (p *Provider) errorUsage(ctx context.Context, msg string) *schema.Usage {
+func (p *Provider) errorUsage(_ context.Context, msg string) *schema.Usage {
 	now := time.Now()
 	return &schema.Usage{
 		Provider:    providerID,
@@ -212,42 +110,6 @@ func (p *Provider) errorUsage(ctx context.Context, msg string) *schema.Usage {
 		Error:       msg,
 		RefreshedAt: now,
 	}
-}
-
-func (p *Provider) parseStats(ctx context.Context, data []byte) (*schema.Usage, *schema.Usage) {
-	now := p.now()
-
-	var cache statsCache
-	if err := json.Unmarshal(data, &cache); err != nil {
-		errUsage := p.errorUsage(ctx, fmt.Sprintf("failed to parse stats cache: %v", err))
-		return nil, errUsage
-	}
-
-	periodStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	periodEnd := periodStart.AddDate(0, 1, 0).Add(-time.Second)
-
-	// Aggregate message count for the current calendar month
-	currentMonth := now.Format("2006-01")
-	var totalMessages int
-	for _, activity := range cache.DailyActivity {
-		if len(activity.Date) >= 7 && activity.Date[:7] == currentMonth {
-			totalMessages += activity.MessageCount
-		}
-	}
-
-	u := &schema.Usage{
-		Provider:    providerID,
-		Label:       providerID,
-		PeriodStart: periodStart,
-		PeriodEnd:   periodEnd,
-		Unit:        "messages",
-		Used:        float64(totalMessages),
-		Limit:       config.GetProviderLimit(providerID),
-		Status:      schema.StatusOK,
-		RefreshedAt: now,
-	}
-
-	return u, nil
 }
 
 func (p *Provider) fetchAPIWindows(ctx context.Context) ([]schema.UsageWindow, error) {
