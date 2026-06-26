@@ -119,21 +119,109 @@ func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
 }
 
 type authEntry struct {
-	Type string `json:"type"`
-	Key  string `json:"key"`
+	Type      string `json:"type"`
+	Key       string `json:"key"`
+	Access    string `json:"access"`
+	AccountID string `json:"accountId"`
 }
 
-func readZenGoKey() string {
+func readOpenCodeAuth() (map[string]authEntry, error) {
 	home, _ := os.UserHomeDir()
 	data, err := os.ReadFile(filepath.Join(home, ".local", "share", "opencode", "auth.json"))
 	if err != nil {
-		return ""
+		return nil, err
 	}
 	var auth map[string]authEntry
 	if err := json.Unmarshal(data, &auth); err != nil {
+		return nil, err
+	}
+	return auth, nil
+}
+
+func readZenGoKey() string {
+	auth, err := readOpenCodeAuth()
+	if err != nil {
 		return ""
 	}
 	return auth["opencode-go"].Key
+}
+
+func readOpenAICreds() (access, accountID string, ok bool) {
+	auth, err := readOpenCodeAuth()
+	if err != nil {
+		return "", "", false
+	}
+	e := auth["openai"]
+	if e.Type != "oauth" || e.Access == "" {
+		return "", "", false
+	}
+	return e.Access, e.AccountID, true
+}
+
+var openaiUsageURL = "https://chatgpt.com/backend-api/wham/usage"
+
+func fetchOpenAIUsageWindows(ctx context.Context, access, accountID string) ([]schema.UsageWindow, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, openaiUsageURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+access)
+	if accountID != "" {
+		req.Header.Set("chatgpt-account-id", accountID)
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("opencode openai token expired — run opencode to refresh")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("opencode openai usage request failed: status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		RateLimit *struct {
+			PrimaryWindow *struct {
+				UsedPercent float64 `json:"used_percent"`
+			} `json:"primary_window"`
+			SecondaryWindow *struct {
+				UsedPercent float64 `json:"used_percent"`
+				ResetAt     float64 `json:"reset_at"`
+			} `json:"secondary_window"`
+		} `json:"rate_limit"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("opencode openai usage parse error: %w", err)
+	}
+
+	var windows []schema.UsageWindow
+	if rl := payload.RateLimit; rl != nil {
+		if pw := rl.PrimaryWindow; pw != nil {
+			windows = append(windows, schema.UsageWindow{
+				Key:   "5h",
+				Label: "5h",
+				Used:  pw.UsedPercent,
+				Limit: 100,
+				Unit:  "percent",
+			})
+		}
+		if sw := rl.SecondaryWindow; sw != nil {
+			windows = append(windows, schema.UsageWindow{
+				Key:     "weekly",
+				Label:   "weekly",
+				Used:    sw.UsedPercent,
+				Limit:   100,
+				Unit:    "percent",
+				ResetAt: time.Unix(int64(sw.ResetAt), 0),
+			})
+		}
+	}
+	return windows, nil
 }
 
 type zenProbe struct {
@@ -293,6 +381,35 @@ GROUP BY provider;`
 		provID := "opencode/" + rawID
 
 		label := config.GetProviderLabel(provID)
+
+		// opencode/openai has its own OAuth token and a potentially different
+		// ChatGPT account from the standalone codex CLI — fetch real usage directly.
+		if rawID == "openai" {
+			if access, accountID, ok := readOpenAICreds(); ok {
+				windows, err := fetchOpenAIUsageWindows(ctx, access, accountID)
+				if err != nil {
+					usages = append(usages, &schema.Usage{
+						Provider:    provID,
+						Label:       label,
+						Unit:        "percent",
+						Status:      schema.StatusError,
+						Error:       err.Error(),
+						RefreshedAt: now,
+					})
+				} else {
+					usages = append(usages, &schema.Usage{
+						Provider:    provID,
+						Label:       label,
+						Unit:        "percent",
+						Windows:     windows,
+						Status:      schema.StatusOK,
+						RefreshedAt: now,
+					})
+				}
+				continue
+			}
+		}
+
 		limit := config.GetProviderLimit(provID)
 		used := row.MonthCostUSD
 		warning := ""

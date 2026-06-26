@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +43,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestFetchAll_SingleProvider(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	db := newTestDB(t)
 	start, _ := currentMonthMillis(t)
 	mid := start + 1000
@@ -73,6 +75,7 @@ func TestFetchAll_SingleProvider(t *testing.T) {
 }
 
 func TestFetchAll_MultipleProviders(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	db := newTestDB(t)
 	start, _ := currentMonthMillis(t)
 	mid := start + 1000
@@ -325,6 +328,7 @@ func TestProbeZenGo_WindowLimit(t *testing.T) {
 }
 
 func TestFetchAll_SharedSubscriptionEstimateForZeroCostProvider(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
 	db := newTestDB(t)
@@ -374,5 +378,160 @@ func TestFetchAll_SharedSubscriptionEstimateForZeroCostProvider(t *testing.T) {
 	}
 	if len(openai.Windows) != 1 {
 		t.Fatalf("openai windows = %d, want 1 (zero-cost estimated only gets monthly)", len(openai.Windows))
+	}
+}
+
+func writeOpenCodeAuth(t *testing.T, home string, entries map[string]authEntry) {
+	t.Helper()
+	authDir := filepath.Join(home, ".local", "share", "opencode")
+	if err := os.MkdirAll(authDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(entries)
+	if err := os.WriteFile(filepath.Join(authDir, "auth.json"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReadOpenAICreds_Missing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	_, _, ok := readOpenAICreds()
+	if ok {
+		t.Error("expected ok=false for missing auth.json")
+	}
+}
+
+func TestReadOpenAICreds_Valid(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeOpenCodeAuth(t, home, map[string]authEntry{
+		"openai": {Type: "oauth", Access: "tok-abc", AccountID: "acct-123"},
+	})
+	access, accountID, ok := readOpenAICreds()
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if access != "tok-abc" {
+		t.Errorf("access = %q, want tok-abc", access)
+	}
+	if accountID != "acct-123" {
+		t.Errorf("accountID = %q, want acct-123", accountID)
+	}
+}
+
+func TestReadOpenAICreds_APIType(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeOpenCodeAuth(t, home, map[string]authEntry{
+		"openai": {Type: "api", Key: "sk-xyz"},
+	})
+	_, _, ok := readOpenAICreds()
+	if ok {
+		t.Error("expected ok=false for non-oauth type")
+	}
+}
+
+func TestFetchOpenAIUsageWindows_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"rate_limit":{"primary_window":{"used_percent":42},"secondary_window":{"used_percent":15,"reset_at":9999999}}}`))
+	}))
+	defer srv.Close()
+
+	old := openaiUsageURL
+	openaiUsageURL = srv.URL
+	defer func() { openaiUsageURL = old }()
+
+	windows, err := fetchOpenAIUsageWindows(context.Background(), "tok", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(windows) != 2 {
+		t.Fatalf("got %d windows, want 2", len(windows))
+	}
+	if windows[0].Key != "5h" || windows[0].Used != 42 {
+		t.Errorf("5h window = %+v", windows[0])
+	}
+	if windows[1].Key != "weekly" || windows[1].Used != 15 {
+		t.Errorf("weekly window = %+v", windows[1])
+	}
+}
+
+func TestFetchOpenAIUsageWindows_Expired(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	old := openaiUsageURL
+	openaiUsageURL = srv.URL
+	defer func() { openaiUsageURL = old }()
+
+	_, err := fetchOpenAIUsageWindows(context.Background(), "tok", "")
+	if err == nil || !strings.Contains(err.Error(), "expired") {
+		t.Errorf("expected expired error, got: %v", err)
+	}
+}
+
+func TestFetchAll_OpenAIUsesRealAPI(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	writeOpenCodeAuth(t, home, map[string]authEntry{
+		"openai": {Type: "oauth", Access: "tok", AccountID: "acct"},
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"rate_limit":{"primary_window":{"used_percent":10},"secondary_window":{"used_percent":5,"reset_at":9999999}}}`))
+	}))
+	defer srv.Close()
+
+	old := openaiUsageURL
+	openaiUsageURL = srv.URL
+	defer func() { openaiUsageURL = old }()
+
+	db := newTestDB(t)
+	start, _ := currentMonthMillis(t)
+	mid := start + 1000
+	if err := testutil.SeedDB(db, []testutil.MessageRow{
+		{ID: "m1", SessionID: "s1", CreatedAt: mid, UpdatedAt: mid, Role: "assistant", Cost: 0, Provider: "openai", TokensIn: 500, TokensOut: 100},
+	}); err != nil {
+		t.Fatalf("SeedDB: %v", err)
+	}
+
+	p := NewFromDB(db)
+	got, err := p.FetchAll(context.Background())
+	if err != nil {
+		t.Fatalf("FetchAll error: %v", err)
+	}
+
+	var openai *schema.Usage
+	for _, u := range got {
+		if u.Provider == "opencode/openai" {
+			openai = u
+		}
+	}
+	if openai == nil {
+		t.Fatal("missing opencode/openai in results")
+	}
+	if openai.Status != schema.StatusOK {
+		t.Errorf("status = %v, want OK", openai.Status)
+	}
+	if openai.Unit != "percent" {
+		t.Errorf("unit = %q, want percent", openai.Unit)
+	}
+	if len(openai.Windows) != 2 {
+		t.Fatalf("got %d windows, want 2 (5h + weekly)", len(openai.Windows))
+	}
+	if openai.Warning != "" {
+		t.Errorf("expected no warning (real API used), got: %q", openai.Warning)
 	}
 }
