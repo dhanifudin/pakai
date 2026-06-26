@@ -3,8 +3,12 @@ package opencode
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -230,6 +234,93 @@ func TestFetchAll_RealCostProviderGetsThreeWindows(t *testing.T) {
 	}
 	if math.Abs(fiveH.Pct()-50) > 0.1 {
 		t.Errorf("5h pct = %.2f, want 50.00", fiveH.Pct())
+	}
+}
+
+func TestReadZenGoKey_Missing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if got := readZenGoKey(); got != "" {
+		t.Errorf("expected empty key for missing auth.json, got %q", got)
+	}
+}
+
+func TestReadZenGoKey_Valid(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	authPath := filepath.Join(dir, ".local", "share", "opencode", "auth.json")
+	if err := os.MkdirAll(filepath.Dir(authPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(map[string]authEntry{
+		"opencode-go": {Type: "api", Key: "sk-test-123"},
+	})
+	if err := os.WriteFile(authPath, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	got := readZenGoKey()
+	if got != "sk-test-123" {
+		t.Errorf("got %q, want sk-test-123", got)
+	}
+}
+
+func TestZenLimitNameToKey(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"5h", "5h"},
+		{"5-hour", "5h"},
+		{"five-hour", "5h"},
+		{"weekly", "weekly"},
+		{"week", "weekly"},
+		{"monthly", "monthly"},
+		{"month", "monthly"},
+		{"unknown", "monthly"},
+		{"", "monthly"},
+	}
+	for _, c := range cases {
+		got := zenLimitNameToKey(c.in)
+		if got != c.want {
+			t.Errorf("zenLimitNameToKey(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestProbeZenGo_Exhausted(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain;charset=UTF-8")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"type":"error","error":{"type":"CreditsError","message":"Insufficient balance."}}`))
+	}))
+	defer srv.Close()
+
+	// Temporarily point probeZenGo at the test server by using a custom RoundTripper.
+	// Since probeZenGo hardcodes the URL, we test it indirectly via the zenProbe struct.
+	// Instead, test the parsing logic directly by calling probeZenGo with a test server URL.
+	got := probeZenGoURL(context.Background(), "sk-test", srv.URL+"/chat/completions")
+	if !got.exhausted {
+		t.Errorf("expected exhausted=true for CreditsError response")
+	}
+	if got.windowKey != "" {
+		t.Errorf("expected no windowKey for CreditsError, got %q", got.windowKey)
+	}
+}
+
+func TestProbeZenGo_WindowLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("retry-after", "3600")
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"type":"error","error":{"type":"GoUsageLimitError","metadata":{"limitName":"monthly","workspace":"wrk_123"}}}`))
+	}))
+	defer srv.Close()
+
+	got := probeZenGoURL(context.Background(), "sk-test", srv.URL+"/chat/completions")
+	if got.exhausted {
+		t.Errorf("expected exhausted=false for GoUsageLimitError")
+	}
+	if got.windowKey != "monthly" {
+		t.Errorf("got windowKey=%q, want monthly", got.windowKey)
+	}
+	if got.retryAfterSec != 3600 {
+		t.Errorf("got retryAfterSec=%d, want 3600", got.retryAfterSec)
 	}
 }
 

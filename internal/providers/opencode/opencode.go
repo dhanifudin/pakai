@@ -3,9 +3,13 @@ package opencode
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,6 +116,88 @@ func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
 	}
 
 	return usages[0], nil
+}
+
+type authEntry struct {
+	Type string `json:"type"`
+	Key  string `json:"key"`
+}
+
+func readZenGoKey() string {
+	home, _ := os.UserHomeDir()
+	data, err := os.ReadFile(filepath.Join(home, ".local", "share", "opencode", "auth.json"))
+	if err != nil {
+		return ""
+	}
+	var auth map[string]authEntry
+	if err := json.Unmarshal(data, &auth); err != nil {
+		return ""
+	}
+	return auth["opencode-go"].Key
+}
+
+type zenProbe struct {
+	exhausted     bool
+	windowKey     string
+	retryAfterSec int
+}
+
+const zenGoProbeURL = "https://opencode.ai/zen/go/v1/chat/completions"
+
+func probeZenGo(ctx context.Context, key string) zenProbe {
+	return probeZenGoURL(ctx, key, zenGoProbeURL)
+}
+
+func probeZenGoURL(ctx context.Context, key, url string) zenProbe {
+	body := `{"model":"kimi-k2.6","messages":[{"role":"user","content":"hi"}],"max_tokens":1}`
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		return zenProbe{}
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return zenProbe{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return zenProbe{}
+	}
+
+	var errBody struct {
+		Error struct {
+			Type     string `json:"type"`
+			Metadata struct {
+				LimitName string `json:"limitName"`
+			} `json:"metadata"`
+		} `json:"error"`
+	}
+	data, _ := io.ReadAll(resp.Body)
+	json.Unmarshal(data, &errBody) //nolint:errcheck
+
+	switch errBody.Error.Type {
+	case "CreditsError":
+		return zenProbe{exhausted: true}
+	case "GoUsageLimitError":
+		ra, _ := strconv.Atoi(resp.Header.Get("retry-after"))
+		return zenProbe{windowKey: zenLimitNameToKey(errBody.Error.Metadata.LimitName), retryAfterSec: ra}
+	}
+	return zenProbe{}
+}
+
+func zenLimitNameToKey(name string) string {
+	s := strings.ToLower(name)
+	if strings.Contains(s, "5h") || strings.Contains(s, "five") || strings.Contains(s, "5-h") {
+		return "5h"
+	}
+	if strings.Contains(s, "week") {
+		return "weekly"
+	}
+	return "monthly"
 }
 
 // FetchAll returns one Usage entry per providerID found in the database.
@@ -243,6 +329,28 @@ GROUP BY provider;`
 			Warning:     warning,
 			RefreshedAt: now,
 		}
+
+		// For the opencode-go real-cost sub, probe the Zen API to detect whether
+		// credits are exhausted or a window limit has been hit server-side (the
+		// local DB only tracks spend from this machine).
+		if rawID == "opencode-go" {
+			if key := readZenGoKey(); key != "" {
+				p := probeZenGo(ctx, key)
+				for i := range u.Windows {
+					w := &u.Windows[i]
+					if p.exhausted && w.Key == "monthly" {
+						w.Used = w.Limit
+					}
+					if p.windowKey != "" && w.Key == p.windowKey {
+						w.Used = w.Limit
+						if p.retryAfterSec > 0 {
+							w.ResetAt = time.Now().Add(time.Duration(p.retryAfterSec) * time.Second)
+						}
+					}
+				}
+			}
+		}
+
 		usages = append(usages, u)
 	}
 
