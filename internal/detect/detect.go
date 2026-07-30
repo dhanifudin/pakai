@@ -38,6 +38,11 @@ func Detect(home homeFunc) []Detection {
 			Path:       filepath.Join(h, ".codex", "auth.json"),
 			Found:      fileExists(filepath.Join(h, ".codex", "auth.json")),
 		},
+		{
+			ProviderID: "opencode-go",
+			Path:       "OPENCODE_COOKIE env var",
+			Found:      os.Getenv("OPENCODE_COOKIE") != "",
+		},
 	}
 }
 
