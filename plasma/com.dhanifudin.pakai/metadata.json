@@ -1,0 +1,19 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Name": "PakAI",
+        "Description": "AI subscription usage tracker — shows Claude, Codex, and OpenCode usage at a glance",
+        "Category": "System Information",
+        "Icon": "office-chart-bar",
+        "Authors": [
+            {
+                "Name": "Dhanifudin",
+                "Email": "dhanifudin@gmail.com"
+            }
+        ],
+        "Id": "com.dhanifudin.pakai",
+        "Version": "1.0",
+        "Website": "https://github.com/dhanifudin/pakai"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
