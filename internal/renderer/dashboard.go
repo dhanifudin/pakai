@@ -66,6 +66,23 @@ var (
 				Foreground(yellowColor)
 )
 
+var (
+	cardStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			Padding(0, 1)
+
+	cardHeaderStyle = lipgloss.NewStyle().
+			Foreground(textColor).
+			Bold(true)
+
+	windowLabelStyle = lipgloss.NewStyle().
+				Foreground(dimColor).
+				Width(3)
+
+	reserveStyle = lipgloss.NewStyle().
+			Foreground(dimColor)
+)
+
 // dashboardModel is the Bubbletea model for the dashboard.
 type dashboardModel struct {
 	usages      []*schema.Usage
@@ -177,8 +194,8 @@ func (m dashboardModel) View() string {
 	} else {
 		standalone, subs := partitionOpencode(m.usages)
 		for _, u := range standalone {
-			sb.WriteString(renderDashboardRow(u))
-			sb.WriteString("\n\n")
+			sb.WriteString(renderProviderCard(u))
+			sb.WriteString("\n")
 		}
 		if len(subs) > 0 {
 			sb.WriteString(renderOpencodeDashboardSection(subs))
@@ -202,8 +219,9 @@ func (m dashboardModel) View() string {
 	return sb.String()
 }
 
-func renderDashboardRow(u *schema.Usage) string {
-	var lines []string
+func renderProviderCard(u *schema.Usage) string {
+	var body strings.Builder
+
 	label := u.Label
 	if label == "" {
 		label = u.Provider
@@ -213,44 +231,59 @@ func renderDashboardRow(u *schema.Usage) string {
 		header = icon + " " + label
 	}
 
+	// Error state: simplified card
 	if u.Status == schema.StatusError {
-		lines = append(lines, "  "+providerStyle.Render(header))
-		lines = append(lines, "    "+errorStyle.Render("error: "+u.Error))
-		return strings.Join(lines, "\n")
+		body.WriteString(cardHeaderStyle.Render(header))
+		body.WriteString("\n")
+		body.WriteString(errorStyle.Render("error: " + u.Error))
+		wrapped := cardStyle.Render(body.String())
+		return "  " + wrapped
 	}
 
-	lines = append(lines, "  "+providerStyle.Render(header))
-	for _, w := range u.WindowsOrDefault() {
-		if w.Pct() < 0 && w.Used == 0 {
-			continue
-		}
-		lines = append(lines, renderDashboardWindowRow(w))
-	}
+	body.WriteString(cardHeaderStyle.Render(header))
+	body.WriteString("\n")
+
+	// Warning / mock notes
 	if u.Warning != "" {
-		lines = append(lines, "    "+warningNoteStyle.Render("note: "+u.Warning))
+		body.WriteString(warningNoteStyle.Render("  note: " + u.Warning))
+		body.WriteString("\n")
 	}
 	if u.Status == schema.StatusMock {
-		lines = append(lines, "    "+dimStyle.Render("mock data"))
+		body.WriteString(dimStyle.Render("  mock data"))
+		body.WriteString("\n")
 	}
-	return strings.Join(lines, "\n")
+
+	for _, w := range u.WindowsOrDefault() {
+		if w.Pct() <= 0 && w.Used == 0 {
+			continue
+		}
+		body.WriteString(renderDashboardWindowRow(w))
+	}
+
+	out := strings.TrimRight(body.String(), "\n")
+	wrapped := cardStyle.Render(out)
+	return "  " + wrapped
 }
 
 // renderOpencodeDashboardSection renders an opencode group header with each
 // sub-provider nested underneath.
 func renderOpencodeDashboardSection(subs []*schema.Usage) string {
-	var lines []string
+	var body strings.Builder
 	header := providerIcon("opencode") + " opencode"
-	lines = append(lines, "  "+providerStyle.Render(header))
+	body.WriteString(cardHeaderStyle.Render(header))
+	body.WriteString("\n")
 	for _, u := range subs {
-		lines = append(lines, renderDashboardRowIndented(u, subLabel(u), "    "))
+		body.WriteString(renderDashboardRowIndented(u, subLabel(u)))
 	}
-	return strings.Join(lines, "\n")
+	out := strings.TrimRight(body.String(), "\n")
+	wrapped := cardStyle.Render(out)
+	return "  " + wrapped
 }
 
 // renderDashboardRowIndented is like renderDashboardRow but uses an explicit
 // label and indentation prefix, for rendering opencode sub-providers.
-func renderDashboardRowIndented(u *schema.Usage, label, indent string) string {
-	var lines []string
+func renderDashboardRowIndented(u *schema.Usage, label string) string {
+	var body strings.Builder
 	icon := providerIcon(u.Provider)
 	header := label
 	if icon != "" {
@@ -258,96 +291,82 @@ func renderDashboardRowIndented(u *schema.Usage, label, indent string) string {
 	}
 
 	if u.Status == schema.StatusError {
-		lines = append(lines, indent+providerStyle.Render(header))
-		lines = append(lines, indent+"  "+errorStyle.Render("error: "+u.Error))
-		return strings.Join(lines, "\n")
+		body.WriteString(cardHeaderStyle.Render(header))
+		body.WriteString("\n")
+		body.WriteString(errorStyle.Render("error: " + u.Error))
+		return strings.TrimRight(body.String(), "\n")
 	}
 
-	lines = append(lines, indent+providerStyle.Render(header))
-	for _, w := range u.WindowsOrDefault() {
-		if w.Pct() < 0 && w.Used == 0 {
-			continue
-		}
-		lines = append(lines, renderDashboardWindowRowIndented(w, indent+"  "))
-	}
+	body.WriteString(cardHeaderStyle.Render(header))
+	body.WriteString("\n")
+
 	if u.Warning != "" {
-		lines = append(lines, indent+"  "+warningNoteStyle.Render("note: "+u.Warning))
+		body.WriteString(warningNoteStyle.Render("  note: " + u.Warning))
+		body.WriteString("\n")
 	}
 	if u.Status == schema.StatusMock {
-		lines = append(lines, indent+"  "+dimStyle.Render("mock data"))
+		body.WriteString(dimStyle.Render("  mock data"))
+		body.WriteString("\n")
 	}
-	return strings.Join(lines, "\n")
+
+	for _, w := range u.WindowsOrDefault() {
+		if w.Pct() <= 0 && w.Used == 0 {
+			continue
+		}
+		body.WriteString(renderDashboardWindowRow(w))
+	}
+
+	return strings.TrimRight(body.String(), "\n")
 }
 
 // renderDashboardWindowRowIndented is like renderDashboardWindowRow but with
 // a custom indentation prefix.
-func renderDashboardWindowRowIndented(w schema.UsageWindow, indent string) string {
-	label := padWindowLabel(shortWindowLabel(w))
-	pct := w.Pct()
-	reset := formatResetAt(w.ResetAt)
-
-	if pct < 0 {
-		line := fmt.Sprintf("%s%s  %s", indent, label, subtleStyle.Render(w.FormatUsed()))
-		if reset != "" {
-			line += "  " + dimStyle.Render(reset)
-		}
-		return line
-	}
-
-	bar := coloredProgressBar(pct, 12)
-	pctStr := fmt.Sprintf("%3.0f%%", pct)
-	var pctStyled string
-	switch {
-	case pct >= 80:
-		pctStyled = criticalStyle.Render(pctStr)
-	case pct >= 50:
-		pctStyled = warningStyle.Render(pctStr)
-	default:
-		pctStyled = okStyle.Render(pctStr)
-	}
-	line := fmt.Sprintf("%s%s  %s %s", indent, label, bar, pctStyled)
-	meta := fmt.Sprintf("%s / %s", w.FormatUsed(), formatWindowLimit(w))
-	if reset != "" {
-		meta += "  " + reset
-	}
-	return line + "  " + subtleStyle.Render(meta)
-}
-
 func renderDashboardWindowRow(w schema.UsageWindow) string {
-	label := padWindowLabel(shortWindowLabel(w))
+	wname := shortWindowLabel(w)
 	pct := w.Pct()
-	reset := formatResetAt(w.ResetAt)
-
-	if pct < 0 {
-		line := fmt.Sprintf("    %s  %s", label, subtleStyle.Render(w.FormatUsed()))
-		if reset != "" {
-			line += "  " + dimStyle.Render(reset)
-		}
-		return line
-	}
-
-	bar := coloredProgressBar(pct, 12)
-	pctStr := fmt.Sprintf("%3.0f%%", pct)
+	leftPct := w.PctLeft()
+	pctStr := fmt.Sprintf("%.0f%% left", leftPct)
 	var pctStyled string
 	switch {
-	case pct >= 95:
-		pctStyled = criticalStyle.Render(pctStr)
-	case pct >= 80:
-		pctStyled = criticalStyle.Render(pctStr)
-	case pct >= 50:
+	case leftPct >= 80:
+		pctStyled = okStyle.Render(pctStr)
+	case leftPct >= 50:
 		pctStyled = warningStyle.Render(pctStr)
 	default:
-		pctStyled = okStyle.Render(pctStr)
+		pctStyled = criticalStyle.Render(pctStr)
 	}
-	line := fmt.Sprintf("    %s  %s %s", label, bar, pctStyled)
-	meta := fmt.Sprintf("%s / %s", w.FormatUsed(), formatWindowLimit(w))
-	if reset != "" {
-		meta += "  " + reset
+
+	if pct < 0 {
+		// No limit configured: just show usage and reset
+		line := fmt.Sprintf("%s  %s", wname, subtleStyle.Render(w.FormatUsed()))
+		if reset := formatResetAt(w.ResetAt); reset != "" {
+			line += "  " + dimStyle.Render(reset)
+		}
+		return "  " + line + "\n"
 	}
-	return line + "  " + subtleStyle.Render(meta)
+
+	bar := coloredProgressBar(pct, 12, leftPct)
+	line1 := fmt.Sprintf("%s %s %s", wname, bar, pctStyled)
+
+	// Reserve status + reset timer on line 2
+	var metaParts []string
+	if reserve := renderReserve(w); reserve != "" {
+		metaParts = append(metaParts, reserve)
+	}
+	if reset := formatResetAt(w.ResetAt); reset != "" {
+		metaParts = append(metaParts, reset)
+	}
+	line2 := ""
+	if len(metaParts) > 0 {
+		// Indent to align with the label width + bar gap
+		indent := strings.Repeat(" ", len(wname)+1)
+		line2 = indent + dimStyle.Render(strings.Join(metaParts, "  ·  "))
+	}
+
+	return "  " + line1 + "\n" + line2 + "\n"
 }
 
-func coloredProgressBar(pct float64, width int) string {
+func coloredProgressBar(pct float64, width int, leftPct float64) string {
 	filled := int(pct / 100.0 * float64(width))
 	if filled > width {
 		filled = width
@@ -359,12 +378,12 @@ func coloredProgressBar(pct float64, width int) string {
 
 	var fillStyle lipgloss.Style
 	switch {
-	case pct >= 80:
-		fillStyle = criticalStyle
-	case pct >= 50:
+	case leftPct >= 80:
+		fillStyle = okStyle
+	case leftPct >= 50:
 		fillStyle = warningStyle
 	default:
-		fillStyle = okStyle
+		fillStyle = criticalStyle
 	}
 
 	return fillStyle.Render(strings.Repeat("█", filled)) +
