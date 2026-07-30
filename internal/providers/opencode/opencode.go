@@ -89,7 +89,6 @@ func (p *Provider) ID() string {
 func (p *Provider) DBPath() string {
 	return p.dbPath
 }
-
 // Fetch returns aggregate usage across all OpenCode providers combined.
 func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
 	usages, err := p.FetchAll(ctx)
@@ -519,6 +518,7 @@ func buildUsageWindows(now, monthStart, monthEnd time.Time, limit float64, row p
 		Label:       "monthly",
 		PeriodStart: monthStart,
 		PeriodEnd:   monthEnd,
+		ResetAt:     monthEnd.Add(time.Second),
 		Used:        row.MonthCostUSD,
 		Limit:       limit,
 		Unit:        "usd",
