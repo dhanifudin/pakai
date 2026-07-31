@@ -23,6 +23,7 @@ import (
 	"github.com/dhanifudin/pakai/internal/providers/mock"
 	"github.com/dhanifudin/pakai/internal/providers/opencode"
 	"github.com/dhanifudin/pakai/internal/providers/opencodego"
+	piprovider "github.com/dhanifudin/pakai/internal/providers/pi"
 	"github.com/dhanifudin/pakai/internal/schema"
 )
 
@@ -112,21 +113,25 @@ func (s *Server) buildProviders() []providers.Provider {
 		}
 	}
 
-	// Add real providers if not mocked
-	if !mockedSet["claude"] {
+	// Add real providers if enabled and not mocked
+	if config.IsProviderEnabled("claude") && !mockedSet["claude"] {
 		provs = append(provs, claude.New())
 	}
 
-	if !mockedSet["opencode"] {
+	if config.IsProviderEnabled("opencode") && !mockedSet["opencode"] {
 		provs = append(provs, opencode.New())
 	}
 
-	if !mockedSet["openai"] {
+	if config.IsProviderEnabled("openai") && !mockedSet["openai"] {
 		provs = append(provs, codex.New())
 	}
 
-	if !mockedSet["opencode-go"] {
+	if config.IsProviderEnabled("opencode-go") && !mockedSet["opencode-go"] {
 		provs = append(provs, opencodego.New())
+	}
+
+	if config.IsProviderEnabled("pi") && !mockedSet["pi"] {
+		provs = append(provs, piprovider.New())
 	}
 	return filterHiddenProviders(provs)
 }
@@ -483,7 +488,6 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
-
 
 // filterHiddenProviders removes any providers that are in the widget hidden config.
 func filterHiddenProviders(provs []providers.Provider) []providers.Provider {

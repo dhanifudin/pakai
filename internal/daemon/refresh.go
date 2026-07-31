@@ -18,24 +18,22 @@ const defaultPollInterval = 30 * time.Second
 
 // RefreshLoop manages the periodic refresh of provider data.
 type RefreshLoop struct {
-	mu           sync.RWMutex
-	providers    []providers.Provider
-	cache        *cache.Cache
-	current      []*schema.Usage
-	onRefresh    func([]*schema.Usage)
-	stopCh       chan struct{}
-	pollInterval time.Duration
-	sf           singleflight.Group
+	mu        sync.RWMutex
+	providers []providers.Provider
+	cache     *cache.Cache
+	current   []*schema.Usage
+	onRefresh func([]*schema.Usage)
+	stopCh    chan struct{}
+	sf        singleflight.Group
 }
 
 // NewRefreshLoop creates a new refresh loop.
 func NewRefreshLoop(provs []providers.Provider, c *cache.Cache, onRefresh func([]*schema.Usage)) *RefreshLoop {
 	return &RefreshLoop{
-		providers:    provs,
-		cache:        c,
-		onRefresh:    onRefresh,
-		stopCh:       make(chan struct{}),
-		pollInterval: defaultPollInterval,
+		providers: provs,
+		cache:     c,
+		onRefresh: onRefresh,
+		stopCh:    make(chan struct{}),
 	}
 }
 
@@ -65,9 +63,9 @@ func (r *RefreshLoop) UpdateProviders(provs []providers.Provider) {
 	go r.refresh()
 }
 
-// RefreshNow triggers an immediate refresh of all providers.
+// RefreshNow refreshes all providers before returning.
 func (r *RefreshLoop) RefreshNow() {
-	go r.refresh()
+	r.refresh()
 }
 
 func (r *RefreshLoop) run() {
@@ -88,10 +86,14 @@ func (r *RefreshLoop) refresh() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var wg sync.WaitGroup
-	resultsCh := make(chan *schema.Usage, len(r.providers)*5)
+	r.mu.RLock()
+	provs := append([]providers.Provider(nil), r.providers...)
+	r.mu.RUnlock()
 
-	for _, p := range r.providers {
+	var wg sync.WaitGroup
+	resultsCh := make(chan *schema.Usage, len(provs)*5)
+
+	for _, p := range provs {
 		wg.Add(1)
 		go func(prov providers.Provider) {
 			defer wg.Done()
@@ -110,7 +112,7 @@ func (r *RefreshLoop) refresh() {
 	wg.Wait()
 	close(resultsCh)
 
-	results := make([]*schema.Usage, 0, len(r.providers)*2)
+	results := make([]*schema.Usage, 0, len(provs)*2)
 	for u := range resultsCh {
 		results = append(results, u)
 	}
@@ -193,6 +195,10 @@ func (r *RefreshLoop) adaptiveInterval() time.Duration {
 	cfg := config.Config()
 	warning := cfg.Thresholds.Warning
 	critical := cfg.Thresholds.Critical
+	baseInterval := time.Duration(cfg.Daemon.PollInterval) * time.Second
+	if baseInterval <= 0 {
+		baseInterval = defaultPollInterval
+	}
 
 	maxPct := -1.0
 	for _, u := range current {
@@ -208,16 +214,14 @@ func (r *RefreshLoop) adaptiveInterval() time.Duration {
 		}
 	}
 
+	adaptive := baseInterval
 	switch {
-	case maxPct < 0:
-		return defaultPollInterval
 	case maxPct >= 95:
-		return 10 * time.Second
+		adaptive = 10 * time.Second
 	case maxPct >= float64(critical):
-		return 30 * time.Second
+		adaptive = 30 * time.Second
 	case maxPct >= float64(warning):
-		return 120 * time.Second
-	default:
-		return defaultPollInterval
+		adaptive = 120 * time.Second
 	}
+	return min(baseInterval, adaptive)
 }

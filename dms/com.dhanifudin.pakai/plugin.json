@@ -1,0 +1,14 @@
+{
+  "id": "pakai",
+  "name": "PakAI",
+  "description": "AI subscription usage for DankBar",
+  "version": "1.0.0",
+  "author": "SyahrulBhudiF",
+  "type": "widget",
+  "capabilities": ["dankbar-widget"],
+  "component": "./PakAIWidget.qml",
+  "settings": "./PakAISettings.qml",
+  "icon": "data_usage",
+  "requires_dms": ">=1.5.0",
+  "permissions": ["network", "settings_read", "settings_write"]
+}

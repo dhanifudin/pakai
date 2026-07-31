@@ -22,6 +22,7 @@ import (
 	"github.com/dhanifudin/pakai/internal/providers/mock"
 	opencodeprov "github.com/dhanifudin/pakai/internal/providers/opencode"
 	opencodegoprov "github.com/dhanifudin/pakai/internal/providers/opencodego"
+	piprovider "github.com/dhanifudin/pakai/internal/providers/pi"
 	"github.com/dhanifudin/pakai/internal/renderer"
 	"github.com/dhanifudin/pakai/internal/schema"
 	"github.com/dhanifudin/pakai/internal/systemd"
@@ -117,17 +118,20 @@ func fetchDirect() ([]*schema.Usage, time.Time, error) {
 		}
 	}
 
-	if !mockedSet["claude"] {
+	if config.IsProviderEnabled("claude") && !mockedSet["claude"] {
 		provs = append(provs, claudeprov.New())
 	}
-	if !mockedSet["opencode"] {
+	if config.IsProviderEnabled("opencode") && !mockedSet["opencode"] {
 		provs = append(provs, opencodeprov.New())
 	}
-	if !mockedSet["openai"] {
+	if config.IsProviderEnabled("openai") && !mockedSet["openai"] {
 		provs = append(provs, codex.New())
 	}
-	if !mockedSet["opencode-go"] {
+	if config.IsProviderEnabled("opencode-go") && !mockedSet["opencode-go"] {
 		provs = append(provs, opencodegoprov.New())
+	}
+	if config.IsProviderEnabled("pi") && !mockedSet["pi"] {
+		provs = append(provs, piprovider.New())
 	}
 
 	var usages []*schema.Usage

@@ -152,6 +152,11 @@ func GetProviderLabel(id string) string {
 	return id
 }
 
+func IsProviderEnabled(id string) bool {
+	p, configured := Config().Provider[id]
+	return !configured || p.Enabled
+}
+
 func GetProviderLimit(id string) float64 {
 	cfg := Config()
 	if p, ok := cfg.Provider[id]; ok && p.Limit != nil {
