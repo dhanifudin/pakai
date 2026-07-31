@@ -17,6 +17,7 @@ type AppConfig struct {
 	Provider   map[string]ProviderConfig `toml:"provider"`
 	Display    DisplayConfig             `toml:"display"`
 	Thresholds ThresholdConfig           `toml:"thresholds"`
+	Widget     WidgetConfig              `toml:"widget"`
 }
 
 type DaemonConfig struct {
@@ -38,6 +39,11 @@ type DisplayConfig struct {
 type ThresholdConfig struct {
 	Warning  int `toml:"warning"`
 	Critical int `toml:"critical"`
+}
+
+type WidgetConfig struct {
+	Pinned string   `toml:"pinned" json:"pinned"`
+	Hidden []string `toml:"hidden" json:"hidden"`
 }
 
 var (
@@ -302,7 +308,32 @@ var configKeySchema = map[string]struct {
 			cfg.Thresholds.Critical = n
 			return nil
 		},
-		get: func(cfg *AppConfig) string { return strconv.Itoa(cfg.Thresholds.Critical) },
+	},
+
+	"widget.pinned": {
+		kind: "string",
+		set: func(cfg *AppConfig, val string) error {
+			cfg.Widget.Pinned = val
+			return nil
+		},
+		get: func(cfg *AppConfig) string { return cfg.Widget.Pinned },
+	},
+	"widget.hidden": {
+		kind: "string",
+		set: func(cfg *AppConfig, val string) error {
+			if val == "" {
+				cfg.Widget.Hidden = nil
+				return nil
+			}
+			parts := strings.Split(val, ",")
+			hidden := make([]string, 0, len(parts))
+			for _, p := range parts {
+				hidden = append(hidden, strings.TrimSpace(p))
+			}
+			cfg.Widget.Hidden = hidden
+			return nil
+		},
+		get: func(cfg *AppConfig) string { return strings.Join(cfg.Widget.Hidden, ", ") },
 	},
 	"provider.claude.enabled": {
 		kind: "bool",
@@ -531,4 +562,65 @@ func parseProviderKey(key string) (id, field string, ok bool) {
 	default:
 		return "", "", false
 	}
+}
+
+func SetWidgetPinned(providerID string) error {
+	cfg, err := readConfig()
+	if err != nil {
+		cfgCopy := defaultConfig
+		cfg = &cfgCopy
+	}
+	// Don't pin a hidden provider
+	if providerID != "" {
+		for _, id := range cfg.Widget.Hidden {
+			if id == providerID {
+				return fmt.Errorf("cannot pin hidden provider: %s", providerID)
+			}
+		}
+	}
+	cfg.Widget.Pinned = providerID
+	if err := WriteConfigAtomic(cfg); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	invalidateConfig()
+	return nil
+}
+
+// SetWidgetHiddenList replaces the entire hidden providers list.
+// If a currently pinned provider is in the new hidden list, it is unpinned.
+func SetWidgetHiddenList(hidden []string) error {
+	cfg, err := readConfig()
+	if err != nil {
+		cfgCopy := defaultConfig
+		cfg = &cfgCopy
+	}
+	// If a previously pinned provider is now hidden, unpin it
+	hiddenSet := make(map[string]bool, len(hidden))
+	for _, id := range hidden {
+		hiddenSet[id] = true
+	}
+	if cfg.Widget.Pinned != "" && hiddenSet[cfg.Widget.Pinned] {
+		cfg.Widget.Pinned = ""
+	}
+	cfg.Widget.Hidden = hidden
+	if err := WriteConfigAtomic(cfg); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	invalidateConfig()
+	return nil
+}
+
+func IsProviderHidden(providerID string) bool {
+	cfg := Config()
+	for _, id := range cfg.Widget.Hidden {
+		if id == providerID {
+			return true
+		}
+	}
+	return false
+}
+
+func GetWidgetPinned() string {
+	cfg := Config()
+	return cfg.Widget.Pinned
 }

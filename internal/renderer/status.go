@@ -68,20 +68,58 @@ func renderUsageLine(u *schema.Usage) string {
 
 func renderUsageLineAs(u *schema.Usage, label, indent string) string {
 	if u.Status == schema.StatusError {
-		return fmt.Sprintf("%s%-20s error: %s\n", indent, label, u.Error)
+		return fmt.Sprintf("%s%s\n%s  error: %s\n", indent, label, indent, u.Error)
 	}
 
-	// Collect windows with non-zero usage and a configured limit.
 	windows := u.WindowsOrDefault()
-	var parts []string
-	for _, w := range windows {
-		if pct := w.Pct(); pct > 0 {
-			parts = append(parts, fmt.Sprintf("%s: %.0f%%", shortWindowLabel(w), pct))
-		}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s%s\n", indent, label))
+
+	if u.Warning != "" {
+		sb.WriteString(fmt.Sprintf("%s  note: %s\n", indent, u.Warning))
+	}
+	if u.Status == schema.StatusMock {
+		sb.WriteString(fmt.Sprintf("%s  mock data\n", indent))
 	}
 
-	if len(parts) == 0 {
-		return fmt.Sprintf("%s%-20s no usage\n", indent, label)
+	rendered := false
+	for _, w := range windows {
+		if w.Pct() <= 0 && w.Used == 0 {
+			continue
+		}
+		sb.WriteString(renderWindowStatusLine(w, indent+"  "))
+		rendered = true
 	}
-	return fmt.Sprintf("%s%-14s %s\n", indent, label, strings.Join(parts, " | "))
+
+	if !rendered {
+		sb.WriteString(fmt.Sprintf("%s  no usage\n", indent))
+	}
+
+	return sb.String()
+}
+
+// renderWindowStatusLine renders a single window line for the status CLI output.
+func renderWindowStatusLine(w schema.UsageWindow, indent string) string {
+	wname := shortWindowLabel(w)
+	pct := w.Pct()
+	leftPct := w.PctLeft()
+
+	if pct < 0 {
+		line := fmt.Sprintf("%s%3s  %s", indent, wname, w.FormatUsed())
+		if reset := formatResetAt(w.ResetAt); reset != "" {
+			line += fmt.Sprintf("  ·  %s", reset)
+		}
+		return line + "\n"
+	}
+
+	parts := []string{fmt.Sprintf("%.0f%% left", leftPct)}
+	if reserve := renderReserve(w); reserve != "" {
+		parts = append(parts, reserve)
+	}
+	if reset := formatResetAt(w.ResetAt); reset != "" {
+		parts = append(parts, reset)
+	}
+
+	return fmt.Sprintf("%s%3s  %s\n", indent, wname, strings.Join(parts, "  ·  "))
 }

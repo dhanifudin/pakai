@@ -116,3 +116,76 @@ func formatUsed(used float64, unit string) string {
 		return fmt.Sprintf("%.2f %s", used, unit)
 	}
 }
+
+// PctLeft returns the remaining percentage (100 - Pct()).
+// Returns -1 if no limit is configured.
+func (w UsageWindow) PctLeft() float64 {
+	p := w.Pct()
+	if p < 0 {
+		return -1
+	}
+	return 100 - p
+}
+
+// Reserve estimates the remaining quota at window end as a percentage of limit,
+// based on elapsed time and burn rate. Positive = won't exhaust before reset.
+// Returns (0, 0, false) when there isn't enough data (percent unit, no times, zero limit).
+func (w UsageWindow) Reserve() (reservePct float64, depletion time.Duration, ok bool) {
+	if w.Limit <= 0 || w.ResetAt.IsZero() || w.PeriodStart.IsZero() {
+		return 0, 0, false
+	}
+	if w.Unit == "percent" {
+		return 0, 0, false
+	}
+
+	now := time.Now()
+	elapsed := now.Sub(w.PeriodStart)
+	if elapsed <= 0 {
+		return 0, 0, false
+	}
+
+	remaining := w.ResetAt.Sub(now)
+	if remaining <= 0 {
+		return 0, 0, false
+	}
+
+	rate := w.Used / elapsed.Seconds()
+	projectedEnd := w.Used + rate*remaining.Seconds()
+	reserve := w.Limit - projectedEnd
+	reservePct = (reserve / w.Limit) * 100
+	depletion = time.Duration((w.Limit - w.Used) / rate * float64(time.Second))
+	return reservePct, depletion, true
+}
+
+// ReserveStr returns a short human-readable string for the reserve status.
+// Returns "" when the window doesn't support reserve calculation.
+func (w UsageWindow) ReserveStr() string {
+	reservePct, depletion, ok := w.Reserve()
+	if !ok {
+		return ""
+	}
+	if reservePct >= 0 {
+		if reservePct > 10 {
+			return "On pace"
+		}
+		return fmt.Sprintf("%.0f%% in reserve", reservePct)
+	}
+	if depletion <= 0 {
+		return ""
+	}
+	d := depletion.Round(time.Minute)
+	if d >= 24*time.Hour {
+		days := int(d.Hours()) / 24
+		hours := int(d.Hours()) % 24
+		if hours == 0 {
+			return fmt.Sprintf("Runs out in %dd", days)
+		}
+		return fmt.Sprintf("Runs out in %dd %dh", days, hours)
+	}
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+	if hours == 0 {
+		return fmt.Sprintf("Runs out in %dm", minutes)
+	}
+	return fmt.Sprintf("Runs out in %dh %02dm", hours, minutes)
+}

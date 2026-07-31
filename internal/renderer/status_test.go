@@ -26,11 +26,11 @@ func TestRenderStatus_PercentOnly(t *testing.T) {
 
 	got := RenderStatus(usages, time.Time{})
 
-	if !strings.Contains(got, "5h: 51%") {
-		t.Errorf("expected 5h window in output, got: %q", got)
+	if !strings.Contains(got, "49% left") {
+		t.Errorf("expected 49%% left for 5h window, got: %q", got)
 	}
-	if !strings.Contains(got, "w: 43%") {
-		t.Errorf("expected weekly window in output, got: %q", got)
+	if !strings.Contains(got, "57% left") {
+		t.Errorf("expected 57%% left for weekly window, got: %q", got)
 	}
 	// Should not contain dollar signs or raw message counts.
 	if strings.Contains(got, "$") || strings.Contains(got, "msg") {
@@ -58,7 +58,7 @@ func TestRenderStatus_HidesZeroUsageWindows(t *testing.T) {
 	if strings.Contains(got, "5h") {
 		t.Errorf("zero-usage 5h window should be hidden, got: %q", got)
 	}
-	if !strings.Contains(got, "w: 15%") {
+	if !strings.Contains(got, "85% left") {
 		t.Errorf("non-zero weekly window should appear, got: %q", got)
 	}
 }
@@ -143,9 +143,9 @@ func TestRenderStatus_OpencodeSection_Percentages(t *testing.T) {
 	if !strings.Contains(got, "openai") || strings.Contains(got, "opencode/openai") {
 		t.Errorf("expected stripped sub-label 'openai', got: %q", got)
 	}
-	// Monthly pct for openai: 15.79/60 ≈ 26%
-	if !strings.Contains(got, "m: 26%") {
-		t.Errorf("expected m: 26%% for opencode/openai, got: %q", got)
+	// Monthly pct for openai: 15.79/60 ≈ 26% used → 74% left
+	if !strings.Contains(got, "74% left") {
+		t.Errorf("expected 74%% left for opencode/openai monthly, got: %q", got)
 	}
 	// No dollars in compact output
 	if strings.Contains(got, "$") {

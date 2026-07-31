@@ -223,3 +223,32 @@ func providerIcon(provider string) string {
 		return ""
 	}
 }
+
+// renderLeftPct returns the "XX% left" string for a window.
+// Returns empty string when there's no limit.
+func renderLeftPct(w schema.UsageWindow) string {
+	left := w.PctLeft()
+	if left < 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.0f%% left", left)
+}
+
+// renderReserve returns the reserve status string for a window.
+// Returns "" when the window doesn't support reserve calculation.
+func renderReserve(w schema.UsageWindow) string {
+	return w.ReserveStr()
+}
+
+// leftPctColor returns the style function for a given left percentage.
+// Green when plenty left (>=80%), yellow when moderate, red when low (<50%).
+func leftPctColor(pctLeft float64) string {
+	switch {
+	case pctLeft >= 80:
+		return "ok"
+	case pctLeft >= 50:
+		return "warning"
+	default:
+		return "critical"
+	}
+}

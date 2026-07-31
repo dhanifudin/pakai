@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,6 +22,7 @@ import (
 	"github.com/dhanifudin/pakai/internal/providers/codex"
 	"github.com/dhanifudin/pakai/internal/providers/mock"
 	"github.com/dhanifudin/pakai/internal/providers/opencode"
+	"github.com/dhanifudin/pakai/internal/providers/opencodego"
 	"github.com/dhanifudin/pakai/internal/schema"
 )
 
@@ -123,7 +125,10 @@ func (s *Server) buildProviders() []providers.Provider {
 		provs = append(provs, codex.New())
 	}
 
-	return provs
+	if !mockedSet["opencode-go"] {
+		provs = append(provs, opencodego.New())
+	}
+	return filterHiddenProviders(provs)
 }
 
 // Start starts the daemon server.
@@ -153,7 +158,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("PUT /mock/{name}", s.handleMockPut)
 	mux.HandleFunc("DELETE /mock/{name}", s.handleMockDelete)
 	mux.HandleFunc("GET /debug/{name}", s.handleDebug)
-
+	mux.HandleFunc("GET /api/config", s.handleWidgetConfig)
+	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
 	s.httpServer = &http.Server{
 		Addr:    addr,
 		Handler: mux,
@@ -404,4 +410,96 @@ func GetPID() (int, error) {
 		return 0, fmt.Errorf("invalid PID file: %w", err)
 	}
 	return pid, nil
+}
+
+// -- Widget config API handler (query-param based) --
+
+type widgetConfigResponse struct {
+	Widget config.WidgetConfig `json:"widget"`
+}
+
+func (s *Server) handleWidgetConfig(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	mutated := false
+
+	if hide := q.Get("hide"); hide != "" {
+		cfg := config.Config()
+		if !slices.Contains(cfg.Widget.Hidden, hide) {
+			hidden := append([]string(nil), cfg.Widget.Hidden...)
+			hidden = append(hidden, hide)
+			if err := config.SetWidgetHiddenList(hidden); err != nil {
+				http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+				return
+			}
+			mutated = true
+		}
+	}
+
+	if unhide := q.Get("unhide"); unhide != "" {
+		cfg := config.Config()
+		hidden := make([]string, 0, len(cfg.Widget.Hidden))
+		for _, id := range cfg.Widget.Hidden {
+			if id != unhide {
+				hidden = append(hidden, id)
+			}
+		}
+		if len(hidden) != len(cfg.Widget.Hidden) {
+			if err := config.SetWidgetHiddenList(hidden); err != nil {
+				http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+				return
+			}
+			mutated = true
+		}
+	}
+
+	if q.Has("pin") {
+		if err := config.SetWidgetPinned(q.Get("pin")); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+		mutated = true
+	}
+
+	if q.Has("unpin") {
+		if err := config.SetWidgetPinned(""); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+		mutated = true
+	}
+
+	if mutated {
+		s.loop.UpdateProviders(s.buildProviders())
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(widgetConfigResponse{
+		Widget: config.Config().Widget,
+	})
+}
+
+func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	s.loop.RefreshNow()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+
+// filterHiddenProviders removes any providers that are in the widget hidden config.
+func filterHiddenProviders(provs []providers.Provider) []providers.Provider {
+	hidden := config.Config().Widget.Hidden
+	if len(hidden) == 0 {
+		return provs
+	}
+	hiddenSet := make(map[string]bool, len(hidden))
+	for _, id := range hidden {
+		hiddenSet[id] = true
+	}
+	filtered := make([]providers.Provider, 0, len(provs))
+	for _, p := range provs {
+		if !hiddenSet[p.ID()] {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
 }

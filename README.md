@@ -2,16 +2,17 @@
 
 > **Disclaimer**: This project was written 100% using AI.
 
-Unified AI subscription usage tracker. Surface Claude, OpenAI Codex, and OpenCode Go usage — per provider, per window (5h / weekly / monthly) — directly in your tmux status bar, Waybar panel, CLI, or a TUI dashboard.
+Unified AI subscription usage tracker. Surface Claude, OpenAI Codex, and OpenCode usage — per provider, per window (5h / weekly / monthly) — directly in your tmux status bar, Waybar panel, KDE Plasma widget, CLI, or a TUI dashboard.
 
 ## Features
 
-- **Multi-provider**: Claude (OAuth), OpenAI Codex (OAuth), OpenCode Go (local DB)
+- **Multi-provider**: Claude (OAuth), OpenAI Codex (OAuth), OpenCode (local SQLite DB), OpenCode Go (web dashboard)
 - **Per-window tracking**: 5 hour, weekly, monthly usage per provider
-- **Multiple surfaces**: tmux, Waybar, `pakai status`, `pakai dashboard` (TUI)
+- **OpenCode sub-providers**: automatically discovers provider backends (Anthropic, OpenAI, etc.) from the local DB with per-sub cost estimation
+- **Multiple surfaces**: tmux, Waybar, KDE Plasma widget, `pakai status`, `pakai dashboard` (TUI)
 - **Percentage-first**: worst-available percentage shown compactly; raw detail on hover/tooltip
 - **Color-coded severity**: green → yellow → red per provider
-- **Live daemon**: polls providers, serves `/status`/`/events` HTTP API
+- **Live daemon**: polls providers, serves `/status`/`/events` HTTP API (SSE)
 - **Auto-detection**: `pakai setup` finds installed providers and prints config snippets
 
 ## Quick start
@@ -28,7 +29,7 @@ go install github.com/dhanifudin/pakai/cmd/pakai@latest
 pakai setup
 ```
 
-This detects installed providers, writes a systemd user unit, and prints ready-to-paste config for tmux and Waybar.
+This detects installed providers, writes a systemd user unit, starts the daemon, and prints ready-to-paste config for tmux and Waybar. A live preview is shown at the end.
 
 ### tmux
 
@@ -49,25 +50,66 @@ Add to your Waybar config:
 "custom/pakai": {
     "exec": "/home/user/go/bin/pakai waybar",
     "return-type": "json",
-    "interval": 30,
+    "interval": 60,
     "format": "{}",
-    "tooltip": true,
-    "on-click": "ghostty -e /home/user/go/bin/pakai dashboard",
-    "on-click-right": "ghostty -e /home/user/go/bin/pakai status"
+    "tooltip": true
 }
 ```
 
-Hover for per-window detail with progress bars. Click for full TUI dashboard.
+CSS classes: `ok` (green), `warning` (yellow), `critical` (red), `over-limit` (bold red). Generate with `pakai setup waybar`.
+
+### KDE Plasma Widget
+
+A native Plasma 6 applet for KDE desktops.
+
+**Install:**
+
+```bash
+# Copy the widget to Plasma's local package directory
+cp -r plasma/com.dhanifudin.pakai ~/.local/share/plasma/plasmoids/
+
+# Reload Plasma shell
+plasmashell --replace &
+# or log out and back in
+```
+
+**Add to panel:** Right-click panel → "Add or Remove Widgets" → search "PakAI" → drag to panel.
+
+**Features:**
+- Compact mode: colored dot + percentage in the panel
+- Pin a provider to show its percentage directly in the panel
+- Expanded popup: provider cards with per-window progress bars (5h / weekly / monthly)
+- Hide individual providers from the widget
+- Reserve projection on monthly windows ("X% in reserve" or "Runs out in Xm")
+- OpenCode sub-providers grouped with per-sub progress bars
+- 30s auto-refresh with manual refresh button
+- Error state with daemon connection diagnostics
 
 ## Supported providers
 
 | Provider | Source | Windows | Setup required |
 |----------|--------|---------|---------------|
-| Claude | `~/.claude/stats-cache.json` + OAuth API | 5h, weekly, monthly | `claude login` |
+| Claude | OAuth API + `~/.claude/stats-cache.json` | 5h, weekly | `claude login` |
 | OpenAI Codex | `~/.codex/auth.json` OAuth | 5h, weekly | `codex login` |
-| OpenCode Go | `~/.local/share/opencode/opencode-stable.db` (or `opencode.db`) | 5h, weekly, monthly | Subscribe at [opencode.ai](https://opencode.ai/auth) |
+| OpenCode (local) | `~/.local/share/opencode/opencode-stable.db` (or `opencode.db`) | 5h, weekly, monthly | [opencode.ai](https://opencode.ai/auth) |
+| OpenCode Go | Web dashboard scraping | 5h, weekly, monthly | Set `OPENCODE_COOKIE` and `OPENCODE_WORKSPACE_ID` env vars |
 
-OpenCode Go per-window limits are automatically applied from the [official docs](https://opencode.ai/docs/go/): 5h=$12, weekly=$30, monthly=$60.
+### OpenCode (local DB)
+
+Reads the SQLite database created by OpenCode. Automatically discovers provider backends used (e.g. `opencode/anthropic`, `opencode/openai`). Each sub-provider gets its own usage entry with cost tracking.
+
+Per-window limits are auto-applied from the [official docs](https://opencode.ai/docs/go/): 5h=$12, weekly=$30, monthly=$60. Configured limits on `opencode-go` are shared across sub-providers.
+
+### OpenCode Go (web dashboard)
+
+Scrapes the [opencode.ai billing dashboard](https://opencode.ai/workspace) for percentage-based usage. Requires two environment variables:
+
+```bash
+export OPENCODE_COOKIE="your-session-cookie"
+export OPENCODE_WORKSPACE_ID="your-workspace-id"
+```
+
+Supports `.env` file loading from the current directory.
 
 ## Configuration
 
@@ -83,9 +125,31 @@ pakai config list
 pakai config set daemon.poll_interval 30
 pakai config set thresholds.warning 50
 pakai config set thresholds.critical 80
+
+# Display options
+pakai config set display.separator " | "
 ```
 
 Config file: `$XDG_CONFIG_HOME/pakai/config.toml`
+
+## Widget Configuration
+
+The Plasma widget and TUI dashboard share the same config options:
+
+```bash
+# Pin a provider to show first (panel compact text / dashboard top)
+pakai config set widget.pinned claude
+
+# Hide providers (comma-separated)
+pakai config set widget.hidden "openai"
+pakai config set widget.hidden "openai,opencode-go"
+
+# Reset — show all providers, no pin
+pakai config set widget.pinned ""
+pakai config set widget.hidden ""
+```
+
+**Dashboard keybindings:** `q` quit, `r` refresh, `d` toggle debug (raw JSON).
 
 ## Commands
 
@@ -94,18 +158,27 @@ Config file: `$XDG_CONFIG_HOME/pakai/config.toml`
 | `pakai tmux` | Compact string for tmux status-right |
 | `pakai waybar` | JSON (text + tooltip + class + percentage) for Waybar |
 | `pakai status` | Human-readable per-provider breakdown |
+| `pakai status --json` | JSON output |
 | `pakai dashboard` | Interactive TUI with live updates |
-| `pakai setup` | Detect providers, write systemd unit, print snippets |
+| `pakai setup` | Detect providers, write systemd unit, start daemon, print snippets |
+| `pakai setup tmux` | Print tmux config line |
+| `pakai setup waybar` | Print waybar module config and CSS |
 | `pakai config set/get/list` | Manage configuration |
 | `pakai daemon start/stop/status` | Control background daemon |
 | `pakai provider debug <id>` | Inspect raw provider data |
+| `pakai provider mock <id>` | Create a mock provider for testing |
+| `pakai provider unmock <id>` | Remove a mock provider |
+| `pakai version` | Print version |
+| `pakai completion <bash|zsh|fish>` | Generate shell completion script |
 
 ## How it works
 
 1. `pakai daemon` starts a background HTTP server (port 7731)
 2. Polls each provider every 30s (adaptive: faster near limits)
 3. `pakai tmux` / `pakai waybar` / `pakai status` query the daemon cache (<200ms)
-4. Non-Claude providers with no native percent data use configurable dollar limits
+4. Commands auto-spawn the daemon if not running
+5. OpenCode sub-providers with no native percent data use configurable dollar limits
+6. OpenCode Go probes the Zen API for credit exhaustion detection
 
 ## Development
 

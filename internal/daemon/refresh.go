@@ -56,6 +56,20 @@ func (r *RefreshLoop) Current() []*schema.Usage {
 	return r.current
 }
 
+// UpdateProviders replaces the provider list and triggers an immediate refresh.
+func (r *RefreshLoop) UpdateProviders(provs []providers.Provider) {
+	r.mu.Lock()
+	r.providers = provs
+	r.current = nil
+	r.mu.Unlock()
+	go r.refresh()
+}
+
+// RefreshNow triggers an immediate refresh of all providers.
+func (r *RefreshLoop) RefreshNow() {
+	go r.refresh()
+}
+
 func (r *RefreshLoop) run() {
 	r.refresh()
 
