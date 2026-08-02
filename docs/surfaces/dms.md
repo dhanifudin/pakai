@@ -5,8 +5,14 @@ Native DankBar plugin that follows the active DMS light, dark, or custom theme.
 ## Install
 
 ```bash
+pakai setup dms --install
+```
+
+Or manually (from a cloned repo):
+
+```bash
 mkdir -p ~/.config/DankMaterialShell/plugins
-ln -s "$PWD/dms/com.dhanifudin.pakai" ~/.config/DankMaterialShell/plugins/pakai
+cp -r internal/widgets/dms ~/.config/DankMaterialShell/plugins/pakai
 dms ipc call plugin-scan scan
 ```
 

@@ -5,7 +5,13 @@ Native Plasma 6 applet for KDE desktops.
 ## Install
 
 ```bash
-cp -r plasma/com.dhanifudin.pakai ~/.local/share/plasma/plasmoids/
+pakai setup plasma --install
+```
+
+Or manually (from a cloned repo):
+
+```bash
+cp -r internal/widgets/plasma ~/.local/share/plasma/plasmoids/com.dhanifudin.pakai
 plasmashell --replace &    # or log out and back in
 ```
 

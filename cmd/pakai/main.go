@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -26,6 +28,7 @@ import (
 	"github.com/dhanifudin/pakai/internal/renderer"
 	"github.com/dhanifudin/pakai/internal/schema"
 	"github.com/dhanifudin/pakai/internal/systemd"
+	"github.com/dhanifudin/pakai/internal/widgets"
 )
 
 var version = "dev"
@@ -497,6 +500,8 @@ func newSetupCmd() *cobra.Command {
 	setupCmd.AddCommand(
 		newSetupWaybarCmd(),
 		newSetupTmuxCmd(),
+		newSetupPlasmaCmd(),
+		newSetupDmsCmd(),
 	)
 
 	return setupCmd
@@ -647,6 +652,126 @@ func newSetupTmuxCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func xdgDataHome() string {
+	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
+		return v
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join("~", ".local", "share")
+	}
+	return filepath.Join(home, ".local", "share")
+}
+
+func xdgConfigHome() string {
+	if v := os.Getenv("XDG_CONFIG_HOME"); v != "" {
+		return v
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join("~", ".config")
+	}
+	return filepath.Join(home, ".config")
+}
+
+func newSetupPlasmaCmd() *cobra.Command {
+	var install bool
+	cmd := &cobra.Command{
+		Use:   "plasma",
+		Short: "Print KDE Plasma widget install steps (--install to perform them)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			dst := filepath.Join(xdgDataHome(), "plasma", "plasmoids", "com.dhanifudin.pakai")
+
+			if !install {
+				fmt.Fprintln(out, "# Install the KDE Plasma widget:")
+				fmt.Fprintf(out, "cp -r internal/widgets/plasma %s\n", dst)
+				fmt.Fprintln(out, "plasmashell --replace &    # or log out and back in")
+				fmt.Fprintln(out, "")
+				fmt.Fprintln(out, "# Then: right-click panel → Add or Remove Widgets → search PakAI → drag to panel")
+				fmt.Fprintln(out, "")
+				fmt.Fprintln(out, "# Or let pakai do it:")
+				fmt.Fprintln(out, "pakai setup plasma --install")
+				return nil
+			}
+
+			fmt.Fprintf(out, "Installing Plasma widget to %s ...\n", dst)
+			if err := widgets.ExtractTo("plasma", dst); err != nil {
+				return fmt.Errorf("extract plasma widget: %w", err)
+			}
+			fmt.Fprintln(out, "  ✓ Files written")
+
+			if _, err := exec.LookPath("plasmashell"); err != nil {
+				fmt.Fprintln(out, "  plasmashell not found — log out and back in to load the widget")
+			} else {
+				fmt.Fprintln(out, "  Reloading plasmashell ...")
+				c := exec.Command("plasmashell", "--replace")
+				c.Stdout = nil
+				c.Stderr = nil
+				if err := c.Start(); err != nil {
+					fmt.Fprintln(out, "  Reload failed — log out and back in to load the widget")
+				} else {
+					fmt.Fprintln(out, "  ✓ plasmashell restarting")
+				}
+			}
+			fmt.Fprintln(out, "")
+			fmt.Fprintln(out, "Add widget: right-click panel → Add or Remove Widgets → search PakAI → drag to panel")
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&install, "install", false, "perform the install instead of printing steps")
+	return cmd
+}
+
+func newSetupDmsCmd() *cobra.Command {
+	var install bool
+	cmd := &cobra.Command{
+		Use:   "dms",
+		Short: "Print DankMaterialShell plugin install steps (--install to perform them)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			dst := filepath.Join(xdgConfigHome(), "DankMaterialShell", "plugins", "pakai")
+
+			if !install {
+				fmt.Fprintln(out, "# Install the DankMaterialShell plugin:")
+				fmt.Fprintf(out, "mkdir -p %s\n", filepath.Dir(dst))
+				fmt.Fprintf(out, "cp -r internal/widgets/dms %s\n", dst)
+				fmt.Fprintln(out, "dms ipc call plugin-scan scan")
+				fmt.Fprintln(out, "")
+				fmt.Fprintln(out, "# Then: enable PakAI in DMS Settings → Plugins, add it to the DankBar layout")
+				fmt.Fprintln(out, "")
+				fmt.Fprintln(out, "# Or let pakai do it:")
+				fmt.Fprintln(out, "pakai setup dms --install")
+				return nil
+			}
+
+			fmt.Fprintf(out, "Installing DMS plugin to %s ...\n", dst)
+			if err := widgets.ExtractTo("dms", dst); err != nil {
+				return fmt.Errorf("extract dms plugin: %w", err)
+			}
+			fmt.Fprintln(out, "  ✓ Files written")
+
+			if _, err := exec.LookPath("dms"); err != nil {
+				fmt.Fprintln(out, "  dms not found — run: dms ipc call plugin-scan scan")
+			} else {
+				fmt.Fprintln(out, "  Scanning plugins ...")
+				out2, err := exec.Command("dms", "ipc", "call", "plugin-scan", "scan").CombinedOutput()
+				if err != nil {
+					fmt.Fprintf(out, "  Scan failed (%v) — run: dms ipc call plugin-scan scan\n", err)
+				} else {
+					_ = out2
+					fmt.Fprintln(out, "  ✓ Plugin scan done")
+				}
+			}
+			fmt.Fprintln(out, "")
+			fmt.Fprintln(out, "Enable: DMS Settings → Plugins → PakAI, then add to DankBar layout")
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&install, "install", false, "perform the install instead of printing steps")
+	return cmd
 }
 
 // -- config command --

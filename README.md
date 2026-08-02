@@ -47,8 +47,8 @@ Full index with prerequisites and screenshots: [docs/providers/](docs/providers/
 | tmux | `pakai tmux` | [→ docs/surfaces/tmux.md](docs/surfaces/tmux.md) |
 | Waybar | `pakai waybar` | [→ docs/surfaces/waybar.md](docs/surfaces/waybar.md) |
 | TUI dashboard | `pakai dashboard` | [→ docs/surfaces/dashboard.md](docs/surfaces/dashboard.md) |
-| KDE Plasma widget | Plasma 6 applet | [→ docs/surfaces/plasma.md](docs/surfaces/plasma.md) |
-| DankMaterialShell | DankBar plugin | [→ docs/surfaces/dms.md](docs/surfaces/dms.md) |
+| KDE Plasma widget | `pakai setup plasma --install` | [→ docs/surfaces/plasma.md](docs/surfaces/plasma.md) |
+| DankMaterialShell | `pakai setup dms --install` | [→ docs/surfaces/dms.md](docs/surfaces/dms.md) |
 
 Full index with setup snippets and screenshots: [docs/surfaces/](docs/surfaces/)
 
@@ -92,6 +92,8 @@ Config file: `$XDG_CONFIG_HOME/pakai/config.toml`
 | `pakai setup` | Detect providers, write systemd unit, start daemon, print snippets |
 | `pakai setup tmux` | Print tmux config line |
 | `pakai setup waybar` | Print Waybar module config and CSS |
+| `pakai setup plasma [--install]` | Print KDE Plasma widget install steps (or perform them) |
+| `pakai setup dms [--install]` | Print DMS plugin install steps (or perform them) |
 | `pakai config set/get/list` | Manage configuration |
 | `pakai daemon start/stop/status` | Control background daemon |
 | `pakai provider debug <id>` | Inspect raw provider data |
