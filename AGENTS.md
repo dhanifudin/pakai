@@ -31,6 +31,27 @@ internal/detect/          — Provider auto-detection logic
 internal/systemd/         — Systemd unit generation
 ```
 
+## Analyzing the codebase (Graphify)
+
+A prebuilt knowledge graph lives in `graphify-out/` (4 k+ nodes, 4 k+ edges). Use it to
+orient yourself before browsing raw files.
+
+```bash
+graphify query "what connects the daemon to the providers?"   # scoped subgraph
+graphify path "daemon" "claude"                               # shortest path between two nodes
+graphify explain "renderer"                                   # focused concept + neighbors
+graphify update .                                             # refresh after code changes (AST-only, no API key)
+```
+
+Read `graphify-out/GRAPH_REPORT.md` for the broad subsystem / god-node overview.
+
+**New machine setup** (graphify is already installed in `~/.local/bin` via uv):
+```bash
+uv tool install graphifyy        # PyPI package is graphifyy (double-y); CLI is graphify
+graphify install --project       # register skill for this repo
+graphify update .                # build code graph (no API key needed)
+```
+
 ## Key patterns
 
 - **Daemon-first**: commands try daemon cache first, fall back to direct fetch, then auto-spawn

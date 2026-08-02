@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="562" height="158">
+  <rect width="100%" height="100%" rx="10" ry="10" fill="#1e1e2e"/>
+  <rect x="0" y="0" width="100%" height="40" rx="10" ry="10" fill="#313244"/>
+  <rect x="0" y="26" width="100%" height="14" fill="#313244"/>
+  <circle cx="18" cy="22" r="7" fill="#f38ba8"/>
+  <circle cx="40" cy="22" r="7" fill="#f9e2af"/>
+  <circle cx="62" cy="22" r="7" fill="#a6e3a1"/>
+  <text x="50%" y="25" text-anchor="middle" fill="#6c7086" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="12">pakai provider debug opencode</text>
+  <text x="20" y="66" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">Provider: opencode</text>
+  <text x="20" y="88" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">Scanning: /home/dhs/.local/share/opencode/opencode-stable.db</text>
+  <text x="20" y="110" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">  ✓ Found: /home/dhs/.local/share/opencode/opencode-stable.db</text>
+  <text x="20" y="132" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">Providers found: 0</text>
+</svg>

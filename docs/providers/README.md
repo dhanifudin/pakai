@@ -1,0 +1,27 @@
+# Providers
+
+pakai supports the following usage data sources. Each provider has its own page with prerequisites, configuration, and a result screenshot.
+
+| Provider | ID | Source | Windows | Auth required |
+|---|---|---|---|---|
+| [Claude](claude.md) | `claude` | OAuth API + `~/.claude/stats-cache.json` | 5h, weekly | `claude login` |
+| [OpenAI Codex](codex.md) | `openai` | `~/.codex/auth.json` OAuth | 5h, weekly | `codex login` |
+| [OpenCode (local)](opencode.md) | `opencode` | `~/.local/share/opencode/*.db` SQLite | 5h, weekly, monthly | opencode.ai login |
+| [OpenCode Go](opencode-go.md) | `opencode-go` | opencode.ai web dashboard | 5h, weekly, monthly | `OPENCODE_COOKIE` + `OPENCODE_WORKSPACE_ID` env vars |
+| [Pi](pi.md) | `pi/<provider>` | `~/.pi/agent/sessions/**/*.jsonl` | Monthly (local tokens) | Use Pi |
+
+## Quick config reference
+
+```bash
+# Enable / disable a provider
+pakai config set provider.<id>.enabled true
+pakai config set provider.<id>.enabled false
+
+# Set a dollar or message limit (turns raw usage into a percentage)
+pakai config set provider.<id>.limit 60
+
+# View current config
+pakai config list
+```
+
+For provider-specific setup details, follow the links in the table above.

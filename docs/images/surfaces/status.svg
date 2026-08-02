@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="629" height="268">
+  <rect width="100%" height="100%" rx="10" ry="10" fill="#1e1e2e"/>
+  <rect x="0" y="0" width="100%" height="40" rx="10" ry="10" fill="#313244"/>
+  <rect x="0" y="26" width="100%" height="14" fill="#313244"/>
+  <circle cx="18" cy="22" r="7" fill="#f38ba8"/>
+  <circle cx="40" cy="22" r="7" fill="#f9e2af"/>
+  <circle cx="62" cy="22" r="7" fill="#a6e3a1"/>
+  <text x="50%" y="25" text-anchor="middle" fill="#6c7086" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="12">pakai status</text>
+  <text x="20" y="66" fill="#89b4fa" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">  opencode-go</text>
+  <text x="20" y="88" fill="#f38ba8" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">    error: OPENCODE_COOKIE and OPENCODE_WORKSPACE_ID env vars not set</text>
+  <text x="20" y="110" fill="#89b4fa" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">  claude</text>
+  <text x="20" y="132" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">     5h  37% left  ·  resets in 13m</text>
+  <text x="20" y="154" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">      w  82% left  ·  resets in 4d 23h</text>
+  <text x="20" y="176" fill="#89b4fa" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">  codex</text>
+  <text x="20" y="198" fill="#f38ba8" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">    no usage</text>
+  <text x="20" y="220" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve"></text>
+  <text x="20" y="242" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">  3 providers · refreshed 13s ago</text>
+</svg>
