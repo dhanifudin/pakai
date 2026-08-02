@@ -23,7 +23,7 @@ plasmashell --replace &    # or log out and back in
 
 ## Screenshot
 
-![pakai Plasma widget](../images/pakai-waybar.png)
+![pakai Plasma widget](../images/surfaces/plasma.png)
 
 ## Configuration
 

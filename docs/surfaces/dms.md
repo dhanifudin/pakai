@@ -27,9 +27,11 @@ Then enable **PakAI** in DMS Settings → Plugins, and add it to the DankBar lay
 | Cache refresh interval | `30` | Seconds between fetches |
 | Bar label | _(empty)_ | Optional label shown in DankBar |
 
-## Screenshot
+## Screenshots
 
-![pakai DMS widget](../images/pakai-waybar.png)
+![pakai DMS widget — popout](../images/surfaces/dms.png)
+
+![pakai DMS widget — full desktop](../images/surfaces/dms-full.png)
 
 ## Troubleshooting
 
