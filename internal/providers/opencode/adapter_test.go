@@ -179,14 +179,12 @@ func TestFetchAll_RealCostProviderGetsThreeWindows(t *testing.T) {
 	db := newTestDB(t)
 	start, _ := currentMonthMillis(t)
 
-	// Place spend inside both the 5h and weekly windows.
 	now := time.Now()
-	recentMillis := now.Add(-1*time.Hour).UnixMilli()
-	mid := start + 1000
+	recentMillis := now.UnixMilli()
+	olderMillis := start + 1000
 
 	err := testutil.SeedDB(db, []testutil.MessageRow{
-		// Older spend — counts for month and week, not 5h
-		{ID: "m1", SessionID: "s1", CreatedAt: mid, UpdatedAt: mid, Role: "assistant", Cost: 6.0, Provider: "opencode-go", TokensIn: 100, TokensOut: 100},
+		{ID: "m1", SessionID: "s1", CreatedAt: olderMillis, UpdatedAt: olderMillis, Role: "assistant", Cost: 6.0, Provider: "opencode-go", TokensIn: 100, TokensOut: 100},
 		// Recent spend — counts for month, week, and 5h
 		{ID: "m2", SessionID: "s1", CreatedAt: recentMillis, UpdatedAt: recentMillis, Role: "assistant", Cost: 6.0, Provider: "opencode-go", TokensIn: 100, TokensOut: 100},
 	})
@@ -225,7 +223,6 @@ func TestFetchAll_RealCostProviderGetsThreeWindows(t *testing.T) {
 		t.Errorf("monthly pct = %.2f, want 20.00", u.Pct())
 	}
 
-	// 5h window: 6/12 = 50%
 	var fiveH *schema.UsageWindow
 	for i := range u.Windows {
 		if u.Windows[i].Key == "5h" {
@@ -235,8 +232,12 @@ func TestFetchAll_RealCostProviderGetsThreeWindows(t *testing.T) {
 	if fiveH == nil {
 		t.Fatal("missing 5h window")
 	}
-	if math.Abs(fiveH.Pct()-50) > 0.1 {
-		t.Errorf("5h pct = %.2f, want 50.00", fiveH.Pct())
+	wantFiveHPct := 50.0
+	if olderMillis >= now.Add(-5*time.Hour).UnixMilli() {
+		wantFiveHPct = 100
+	}
+	if math.Abs(fiveH.Pct()-wantFiveHPct) > 0.1 {
+		t.Errorf("5h pct = %.2f, want %.2f", fiveH.Pct(), wantFiveHPct)
 	}
 }
 

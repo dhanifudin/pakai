@@ -85,6 +85,18 @@ plasmashell --replace &
 - 30s auto-refresh with manual refresh button
 - Error state with daemon connection diagnostics
 
+### DankMaterialShell Widget
+
+A native DankBar plugin that follows the active DMS light, dark, or custom theme.
+
+```bash
+mkdir -p ~/.config/DankMaterialShell/plugins
+ln -s "$PWD/dms/com.dhanifudin.pakai" ~/.config/DankMaterialShell/plugins/pakai
+dms ipc call plugin-scan scan
+```
+
+Enable **PakAI** in DMS Settings → Plugins, then add it to the DankBar layout. The popout shows provider windows, reset times, errors, and **Refresh** and **Settings** actions. Settings opens DMS's plugin configuration, where the daemon URL, cache refresh interval, and optional bar label can be changed without editing QML.
+
 ## Supported providers
 
 | Provider | Source | Windows | Setup required |
@@ -93,12 +105,24 @@ plasmashell --replace &
 | OpenAI Codex | `~/.codex/auth.json` OAuth | 5h, weekly | `codex login` |
 | OpenCode (local) | `~/.local/share/opencode/opencode-stable.db` (or `opencode.db`) | 5h, weekly, monthly | [opencode.ai](https://opencode.ai/auth) |
 | OpenCode Go | Web dashboard scraping | 5h, weekly, monthly | Set `OPENCODE_COOKIE` and `OPENCODE_WORKSPACE_ID` env vars |
+| Pi custom providers | `~/.pi/agent/sessions/**/*.jsonl` | Monthly local tokens | Use the provider in Pi |
 
 ### OpenCode (local DB)
 
 Reads the SQLite database created by OpenCode. Automatically discovers provider backends used (e.g. `opencode/anthropic`, `opencode/openai`). Each sub-provider gets its own usage entry with cost tracking.
 
 Per-window limits are auto-applied from the [official docs](https://opencode.ai/docs/go/): 5h=$12, weekly=$30, monthly=$60. Configured limits on `opencode-go` are shared across sub-providers.
+
+### Pi custom providers
+
+Reads Pi session logs and automatically exposes each provider as `pi/<provider>`, including `pi/opencode` (OpenCode Zen) and `pi/kosyayuk`. This is local token usage recorded by Pi, not server-side billing balance or quota.
+
+Optional limits can turn token totals into percentages:
+
+```bash
+pakai config set provider."pi/opencode".limit 1000000
+pakai config set provider."pi/kosyayuk".limit 1000000
+```
 
 ### OpenCode Go (web dashboard)
 
@@ -140,7 +164,11 @@ The Plasma widget and TUI dashboard share the same config options:
 # Pin a provider to show first (panel compact text / dashboard top)
 pakai config set widget.pinned claude
 
-# Hide providers (comma-separated)
+# Disable providers you do not use (removes fetching and display)
+pakai config set provider.openai.enabled false
+pakai config set provider.opencode-go.enabled false
+
+# Hide providers from widgets only (comma-separated)
 pakai config set widget.hidden "openai"
 pakai config set widget.hidden "openai,opencode-go"
 
