@@ -175,6 +175,7 @@ func TestFetchAll_DBError(t *testing.T) {
 
 func TestFetchAll_RealCostProviderGetsThreeWindows(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", dir)
 	db := newTestDB(t)
 	start, _ := currentMonthMillis(t)
@@ -267,64 +268,146 @@ func TestReadZenGoKey_Valid(t *testing.T) {
 	}
 }
 
-func TestZenLimitNameToKey(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"5h", "5h"},
-		{"5-hour", "5h"},
-		{"five-hour", "5h"},
-		{"weekly", "weekly"},
-		{"week", "weekly"},
-		{"monthly", "monthly"},
-		{"month", "monthly"},
-		{"unknown", "monthly"},
-		{"", "monthly"},
+func TestZenUsageWindows(t *testing.T) {
+	payload := &zenUsagePayload{}
+	payload.Usage.Rolling = zenUsageWindow{Status: "ok", Percent: 0, ResetsAt: "2026-08-15T18:51:14.815Z"}
+	payload.Usage.Weekly = zenUsageWindow{Status: "ok", Percent: 35, ResetsAt: "2026-08-17T00:00:00.815Z"}
+	payload.Usage.Monthly = zenUsageWindow{Status: "rate-limited", Percent: 36, ResetsAt: "2026-08-29T08:51:22.815Z"}
+
+	windows := zenUsageWindows(payload)
+	if len(windows) != 3 {
+		t.Fatalf("got %d windows, want 3", len(windows))
 	}
-	for _, c := range cases {
-		got := zenLimitNameToKey(c.in)
-		if got != c.want {
-			t.Errorf("zenLimitNameToKey(%q) = %q, want %q", c.in, got, c.want)
+
+	byKey := map[string]schema.UsageWindow{}
+	for _, w := range windows {
+		byKey[w.Key] = w
+	}
+
+	if w := byKey["5h"]; w.Used != 0 || w.Limit != 100 || w.Unit != "percent" {
+		t.Errorf("5h window = %+v, want percent 0/100", w)
+	}
+	if w := byKey["weekly"]; w.Used != 35 {
+		t.Errorf("weekly Used = %.2f, want 35", w.Used)
+	}
+	// rate-limited monthly counts as fully used
+	if w := byKey["monthly"]; w.Used != 100 {
+		t.Errorf("monthly Used = %.2f, want 100 (rate-limited)", w.Used)
+	}
+
+	wantReset := time.Date(2026, 8, 17, 0, 0, 0, 815*int(time.Millisecond), time.UTC)
+	if !byKey["weekly"].ResetAt.Equal(wantReset) {
+		t.Errorf("weekly ResetAt = %v, want %v", byKey["weekly"].ResetAt, wantReset)
+	}
+}
+
+func TestFetchZenGoUsage_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer sk-test" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"usage":{"rolling":{"status":"ok","percent":0,"resetsAt":"2026-08-15T18:51:14.815Z"},"weekly":{"status":"ok","percent":35,"resetsAt":"2026-08-17T00:00:00.815Z"},"monthly":{"status":"ok","percent":36,"resetsAt":"2026-08-29T08:51:22.815Z"}}}`))
+	}))
+	defer srv.Close()
+
+	old := zenGoUsageURL
+	zenGoUsageURL = srv.URL
+	defer func() { zenGoUsageURL = old }()
+
+	payload, err := fetchZenGoUsage(context.Background(), "sk-test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if payload.Usage.Weekly.Percent != 35 {
+		t.Errorf("weekly percent = %.2f, want 35", payload.Usage.Weekly.Percent)
+	}
+	if payload.Usage.Monthly.Percent != 36 {
+		t.Errorf("monthly percent = %.2f, want 36", payload.Usage.Monthly.Percent)
+	}
+}
+
+func TestFetchZenGoUsage_AuthError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"type":"error","error":{"type":"AuthError","message":"Unauthorized"}}`))
+	}))
+	defer srv.Close()
+
+	old := zenGoUsageURL
+	zenGoUsageURL = srv.URL
+	defer func() { zenGoUsageURL = old }()
+
+	_, err := fetchZenGoUsage(context.Background(), "sk-bad")
+	if err == nil {
+		t.Fatal("expected error for 401 response")
+	}
+}
+
+func TestFetchAll_OpenCodeGoUsesZenUsageAPI(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	writeOpenCodeAuth(t, home, map[string]authEntry{
+		"opencode-go": {Type: "api", Key: "sk-test"},
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer sk-test" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"usage":{"rolling":{"status":"ok","percent":10,"resetsAt":"2026-08-15T18:51:14.815Z"},"weekly":{"status":"ok","percent":35,"resetsAt":"2026-08-17T00:00:00.815Z"},"monthly":{"status":"ok","percent":36,"resetsAt":"2026-08-29T08:51:22.815Z"}}}`))
+	}))
+	defer srv.Close()
+
+	old := zenGoUsageURL
+	zenGoUsageURL = srv.URL
+	defer func() { zenGoUsageURL = old }()
+
+	db := newTestDB(t)
+	start, _ := currentMonthMillis(t)
+	mid := start + 1000
+	if err := testutil.SeedDB(db, []testutil.MessageRow{
+		{ID: "m1", SessionID: "s1", CreatedAt: mid, UpdatedAt: mid, Role: "assistant", Cost: 6.0, Provider: "opencode-go", TokensIn: 100, TokensOut: 100},
+	}); err != nil {
+		t.Fatalf("SeedDB: %v", err)
+	}
+
+	p := NewFromDB(db)
+	got, err := p.FetchAll(context.Background())
+	if err != nil {
+		t.Fatalf("FetchAll error: %v", err)
+	}
+
+	var goUsage *schema.Usage
+	for _, u := range got {
+		if u.Provider == "opencode/opencode-go" {
+			goUsage = u
 		}
 	}
-}
-
-func TestProbeZenGo_Exhausted(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain;charset=UTF-8")
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"type":"error","error":{"type":"CreditsError","message":"Insufficient balance."}}`))
-	}))
-	defer srv.Close()
-
-	// Temporarily point probeZenGo at the test server by using a custom RoundTripper.
-	// Since probeZenGo hardcodes the URL, we test it indirectly via the zenProbe struct.
-	// Instead, test the parsing logic directly by calling probeZenGo with a test server URL.
-	got := probeZenGoURL(context.Background(), "sk-test", srv.URL+"/chat/completions")
-	if !got.exhausted {
-		t.Errorf("expected exhausted=true for CreditsError response")
+	if goUsage == nil {
+		t.Fatal("missing opencode/opencode-go in results")
 	}
-	if got.windowKey != "" {
-		t.Errorf("expected no windowKey for CreditsError, got %q", got.windowKey)
-	}
-}
 
-func TestProbeZenGo_WindowLimit(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("retry-after", "3600")
-		w.WriteHeader(http.StatusTooManyRequests)
-		w.Write([]byte(`{"type":"error","error":{"type":"GoUsageLimitError","metadata":{"limitName":"monthly","workspace":"wrk_123"}}}`))
-	}))
-	defer srv.Close()
-
-	got := probeZenGoURL(context.Background(), "sk-test", srv.URL+"/chat/completions")
-	if got.exhausted {
-		t.Errorf("expected exhausted=false for GoUsageLimitError")
+	// API windows replace the DB-derived USD windows.
+	if len(goUsage.Windows) != 3 {
+		t.Fatalf("got %d windows, want 3 (from zen usage API)", len(goUsage.Windows))
 	}
-	if got.windowKey != "monthly" {
-		t.Errorf("got windowKey=%q, want monthly", got.windowKey)
+	byKey := map[string]schema.UsageWindow{}
+	for _, w := range goUsage.Windows {
+		byKey[w.Key] = w
 	}
-	if got.retryAfterSec != 3600 {
-		t.Errorf("got retryAfterSec=%d, want 3600", got.retryAfterSec)
+	if w := byKey["weekly"]; w.Unit != "percent" || w.Used != 35 || w.Limit != 100 {
+		t.Errorf("weekly window = %+v, want percent 35/100 from API", w)
+	}
+	if w := byKey["5h"]; w.Used != 10 {
+		t.Errorf("5h window Used = %.2f, want 10 (rolling)", w.Used)
 	}
 }
 

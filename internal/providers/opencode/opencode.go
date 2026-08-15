@@ -5,11 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -89,6 +87,7 @@ func (p *Provider) ID() string {
 func (p *Provider) DBPath() string {
 	return p.dbPath
 }
+
 // Fetch returns aggregate usage across all OpenCode providers combined.
 func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
 	usages, err := p.FetchAll(ctx)
@@ -223,68 +222,83 @@ func fetchOpenAIUsageWindows(ctx context.Context, access, accountID string) ([]s
 	return windows, nil
 }
 
-type zenProbe struct {
-	exhausted     bool
-	windowKey     string
-	retryAfterSec int
+type zenUsageWindow struct {
+	Status   string  `json:"status"`
+	Percent  float64 `json:"percent"`
+	ResetsAt string  `json:"resetsAt"`
 }
 
-const zenGoProbeURL = "https://opencode.ai/zen/go/v1/chat/completions"
-
-func probeZenGo(ctx context.Context, key string) zenProbe {
-	return probeZenGoURL(ctx, key, zenGoProbeURL)
+type zenUsagePayload struct {
+	Usage struct {
+		Rolling zenUsageWindow `json:"rolling"`
+		Weekly  zenUsageWindow `json:"weekly"`
+		Monthly zenUsageWindow `json:"monthly"`
+	} `json:"usage"`
+	Type  string `json:"type"`
+	Error struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	} `json:"error"`
 }
 
-func probeZenGoURL(ctx context.Context, key, url string) zenProbe {
-	body := `{"model":"kimi-k2.6","messages":[{"role":"user","content":"hi"}],"max_tokens":1}`
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
+var zenGoUsageURL = "https://opencode.ai/zen/go/v1/usage"
+
+// fetchZenGoUsage returns the server-side usage windows for the Go
+// subscription. The API is authoritative: it tracks usage across all of the
+// user's machines, not just local DB spend.
+func fetchZenGoUsage(ctx context.Context, key string) (*zenUsagePayload, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, zenGoUsageURL, nil)
 	if err != nil {
-		return zenProbe{}
+		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 8 * time.Second}
+	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return zenProbe{}
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusOK {
-		return zenProbe{}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("opencode zen usage request failed: status %d", resp.StatusCode)
 	}
 
-	var errBody struct {
-		Error struct {
-			Type     string `json:"type"`
-			Metadata struct {
-				LimitName string `json:"limitName"`
-			} `json:"metadata"`
-		} `json:"error"`
+	var payload zenUsagePayload
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("opencode zen usage parse error: %w", err)
 	}
-	data, _ := io.ReadAll(resp.Body)
-	json.Unmarshal(data, &errBody) //nolint:errcheck
-
-	switch errBody.Error.Type {
-	case "CreditsError":
-		return zenProbe{exhausted: true}
-	case "GoUsageLimitError":
-		ra, _ := strconv.Atoi(resp.Header.Get("retry-after"))
-		return zenProbe{windowKey: zenLimitNameToKey(errBody.Error.Metadata.LimitName), retryAfterSec: ra}
+	if payload.Type == "error" || payload.Error.Type != "" {
+		return nil, fmt.Errorf("opencode zen usage error: %s", payload.Error.Message)
 	}
-	return zenProbe{}
+	return &payload, nil
 }
 
-func zenLimitNameToKey(name string) string {
-	s := strings.ToLower(name)
-	if strings.Contains(s, "5h") || strings.Contains(s, "five") || strings.Contains(s, "5-h") {
-		return "5h"
+// zenUsageWindows converts the API payload into percent-based usage windows.
+// A "rate-limited" window counts as fully used.
+func zenUsageWindows(payload *zenUsagePayload) []schema.UsageWindow {
+	mk := func(key string, w zenUsageWindow) schema.UsageWindow {
+		used := w.Percent
+		if w.Status == "rate-limited" {
+			used = 100
+		}
+		out := schema.UsageWindow{
+			Key:   key,
+			Label: key,
+			Used:  used,
+			Limit: 100,
+			Unit:  "percent",
+		}
+		if t, err := time.Parse(time.RFC3339, w.ResetsAt); err == nil {
+			out.ResetAt = t
+		}
+		return out
 	}
-	if strings.Contains(s, "week") {
-		return "weekly"
+	return []schema.UsageWindow{
+		mk("5h", payload.Usage.Rolling),
+		mk("weekly", payload.Usage.Weekly),
+		mk("monthly", payload.Usage.Monthly),
 	}
-	return "monthly"
 }
 
 // FetchAll returns one Usage entry per providerID found in the database.
@@ -446,23 +460,14 @@ GROUP BY provider;`
 			RefreshedAt: now,
 		}
 
-		// For the opencode-go real-cost sub, probe the Zen API to detect whether
-		// credits are exhausted or a window limit has been hit server-side (the
-		// local DB only tracks spend from this machine).
+		// For the opencode-go real-cost sub, prefer the server-side usage API:
+		// it reports authoritative percent windows (rolling/weekly/monthly) and
+		// rate-limit status across all machines. Fall back to the local DB
+		// windows when the API is unreachable or no key is present.
 		if rawID == "opencode-go" {
 			if key := readZenGoKey(); key != "" {
-				p := probeZenGo(ctx, key)
-				for i := range u.Windows {
-					w := &u.Windows[i]
-					if p.exhausted && w.Key == "monthly" {
-						w.Used = w.Limit
-					}
-					if p.windowKey != "" && w.Key == p.windowKey {
-						w.Used = w.Limit
-						if p.retryAfterSec > 0 {
-							w.ResetAt = time.Now().Add(time.Duration(p.retryAfterSec) * time.Second)
-						}
-					}
+				if payload, err := fetchZenGoUsage(ctx, key); err == nil {
+					u.Windows = zenUsageWindows(payload)
 				}
 			}
 		}
@@ -537,4 +542,3 @@ func isSQLiteBusy(err error) bool {
 		strings.Contains(err.Error(), "SQLITE_BUSY") ||
 		strings.Contains(err.Error(), "database is locked")
 }
-
