@@ -23,7 +23,6 @@ import (
 	"github.com/dhanifudin/pakai/internal/providers/codex"
 	"github.com/dhanifudin/pakai/internal/providers/mock"
 	opencodeprov "github.com/dhanifudin/pakai/internal/providers/opencode"
-	opencodegoprov "github.com/dhanifudin/pakai/internal/providers/opencodego"
 	piprovider "github.com/dhanifudin/pakai/internal/providers/pi"
 	"github.com/dhanifudin/pakai/internal/renderer"
 	"github.com/dhanifudin/pakai/internal/schema"
@@ -129,9 +128,6 @@ func fetchDirect() ([]*schema.Usage, time.Time, error) {
 	}
 	if config.IsProviderEnabled("openai") && !mockedSet["openai"] {
 		provs = append(provs, codex.New())
-	}
-	if config.IsProviderEnabled("opencode-go") && !mockedSet["opencode-go"] {
-		provs = append(provs, opencodegoprov.New())
 	}
 	if config.IsProviderEnabled("pi") && !mockedSet["pi"] {
 		provs = append(provs, piprovider.New())
@@ -1004,40 +1000,12 @@ func newProviderDebugCmd() *cobra.Command {
 					}
 				}
 
-			case "opencode-go":
-				p := opencodegoprov.New()
-				fmt.Printf("Scanning: opencode.ai billing dashboard\n")
-				if os.Getenv("OPENCODE_COOKIE") == "" {
-					fmt.Println("  OPENCODE_COOKIE not set — set this env var and re-run")
-				}
-				if os.Getenv("OPENCODE_WORKSPACE_ID") == "" {
-					fmt.Println("  OPENCODE_WORKSPACE_ID not set — set this env var and re-run")
-				}
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				u, err := p.Fetch(ctx)
-				if err != nil {
-					fmt.Printf("Fetch error: %v\n", err)
-				} else {
-					fmt.Printf("Status: %s\n", u.Status)
-					for _, w := range u.WindowsOrDefault() {
-						if pct := w.Pct(); pct >= 0 {
-							fmt.Printf("  - %s: %.1f%%\n", w.Label, pct)
-						} else {
-							fmt.Printf("  - %s: %s\n", w.Label, w.FormatUsed())
-						}
-					}
-					if u.Error != "" {
-						fmt.Printf("Error: %s\n", u.Error)
-					}
-				}
-
 			default:
 				// Check if it's a mock
 				mp, err := mock.Load(id)
 				if err != nil {
 					fmt.Printf("Unknown provider: %s\n", id)
-					fmt.Println("Known providers: claude, opencode, opencode-go, openai")
+					fmt.Println("Known providers: claude, opencode, openai")
 					return nil
 				}
 

@@ -22,7 +22,6 @@ import (
 	"github.com/dhanifudin/pakai/internal/providers/codex"
 	"github.com/dhanifudin/pakai/internal/providers/mock"
 	"github.com/dhanifudin/pakai/internal/providers/opencode"
-	"github.com/dhanifudin/pakai/internal/providers/opencodego"
 	piprovider "github.com/dhanifudin/pakai/internal/providers/pi"
 	"github.com/dhanifudin/pakai/internal/schema"
 )
@@ -124,10 +123,6 @@ func (s *Server) buildProviders() []providers.Provider {
 
 	if config.IsProviderEnabled("openai") && !mockedSet["openai"] {
 		provs = append(provs, codex.New())
-	}
-
-	if config.IsProviderEnabled("opencode-go") && !mockedSet["opencode-go"] {
-		provs = append(provs, opencodego.New())
 	}
 
 	if config.IsProviderEnabled("pi") && !mockedSet["pi"] {
