@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dhanifudin/pakai/internal/config"
 	"github.com/dhanifudin/pakai/internal/schema"
 )
 
@@ -20,16 +21,17 @@ const providerID = "openai"
 const codexLabel = "codex"
 
 const (
-	credentialsFileName = "auth.json"
-	oauthUsageURL       = "https://chatgpt.com/backend-api/wham/usage"
-	oauthTokenURL       = "https://auth.openai.com/oauth/token"
-	oauthClientID       = "app_EMoamEEZ73f0CkXaXp7hrann"
-	apiCacheTTL         = 60 * time.Second
-	refreshBuffer       = 5 * time.Minute
+	oauthUsageURL   = "https://chatgpt.com/backend-api/wham/usage"
+	oauthTokenURL   = "https://auth.openai.com/oauth/token"
+	oauthClientID   = "app_EMoamEEZ73f0CkXaXp7hrann"
+	piCredentialsID = "openai-codex"
+	apiCacheTTL     = 60 * time.Second
+	refreshBuffer   = 5 * time.Minute
 )
 
 type Provider struct {
 	credsPath  string
+	source     string
 	httpClient *http.Client
 	now        func() time.Time
 
@@ -39,6 +41,21 @@ type Provider struct {
 }
 
 type oauthCredentials struct {
+	AccessToken  string
+	RefreshToken string
+	AccountID    string
+	Expires      int64
+}
+
+type piOAuthCredentials struct {
+	Type         string `json:"type"`
+	AccessToken  string `json:"access"`
+	RefreshToken string `json:"refresh"`
+	AccountID    string `json:"accountId"`
+	Expires      int64  `json:"expires"`
+}
+
+type codexOAuthCredentials struct {
 	Tokens struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
@@ -68,8 +85,17 @@ type cachedUsageWindows struct {
 
 func New() *Provider {
 	home, _ := os.UserHomeDir()
+	source := config.GetProviderSource(providerID)
+	if source == "" {
+		source = "pi"
+	}
+	path := filepath.Join(home, ".pi", "agent", "auth.json")
+	if source == "codex" {
+		path = filepath.Join(home, ".codex", "auth.json")
+	}
 	return &Provider{
-		credsPath:  filepath.Join(home, ".codex", credentialsFileName),
+		credsPath:  path,
+		source:     source,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 		now:        time.Now,
 	}
@@ -77,6 +103,10 @@ func New() *Provider {
 
 func (p *Provider) ID() string {
 	return providerID
+}
+
+func (p *Provider) CredentialsPath() string {
+	return p.credsPath
 }
 
 func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
@@ -130,7 +160,7 @@ func (p *Provider) fetchUsageWindows(ctx context.Context) ([]schema.UsageWindow,
 		return nil, err
 	}
 
-	resp, statusCode, err := p.requestUsage(ctx, accessToken, creds.Tokens.AccountID)
+	resp, statusCode, err := p.requestUsage(ctx, accessToken, creds.AccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,37 +181,60 @@ func (p *Provider) readCredentials() (*oauthCredentials, error) {
 	data, err := os.ReadFile(p.credsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("Codex credentials not found — ensure Codex is installed and you are logged in")
+			return nil, fmt.Errorf("%s Codex credentials not found", p.source)
 		}
-		return nil, fmt.Errorf("failed to read Codex credentials: %w", err)
+		return nil, fmt.Errorf("read %s Codex credentials: %w", p.source, err)
 	}
-	var creds oauthCredentials
-	if err := json.Unmarshal(data, &creds); err != nil {
-		return nil, fmt.Errorf("failed to parse Codex credentials: %w", err)
+
+	switch p.source {
+	case "pi":
+		var auth map[string]json.RawMessage
+		if err := json.Unmarshal(data, &auth); err != nil {
+			return nil, fmt.Errorf("parse Pi credentials: %w", err)
+		}
+		entry, ok := auth[piCredentialsID]
+		if !ok {
+			return nil, fmt.Errorf("Pi Codex credentials not found — add openai-codex in Pi")
+		}
+		var creds piOAuthCredentials
+		if err := json.Unmarshal(entry, &creds); err != nil {
+			return nil, fmt.Errorf("parse Pi Codex credentials: %w", err)
+		}
+		if creds.Type != "oauth" {
+			return nil, fmt.Errorf("Pi openai-codex credentials are not OAuth")
+		}
+		return &oauthCredentials{creds.AccessToken, creds.RefreshToken, creds.AccountID, creds.Expires}, nil
+	case "codex":
+		var creds codexOAuthCredentials
+		if err := json.Unmarshal(data, &creds); err != nil {
+			return nil, fmt.Errorf("parse Codex credentials: %w", err)
+		}
+		return &oauthCredentials{creds.Tokens.AccessToken, creds.Tokens.RefreshToken, creds.Tokens.AccountID, 0}, nil
+	default:
+		return nil, fmt.Errorf("unsupported Codex credential source: %s", p.source)
 	}
-	return &creds, nil
 }
 
 func (p *Provider) ensureAccessToken(ctx context.Context, creds *oauthCredentials) (string, error) {
-	if creds.Tokens.AccessToken == "" {
+	if creds.AccessToken == "" {
 		return "", nil
 	}
 
 	// Check if token expiry is within the refresh buffer
-	expiry := jwtExp(creds.Tokens.AccessToken)
+	expiry := jwtExp(creds.AccessToken)
 	if !expiry.IsZero() && expiry.After(p.now().Add(refreshBuffer)) {
-		return creds.Tokens.AccessToken, nil
+		return creds.AccessToken, nil
 	}
 
 	// Refresh token
-	if creds.Tokens.RefreshToken == "" {
-		return creds.Tokens.AccessToken, nil
+	if creds.RefreshToken == "" {
+		return creds.AccessToken, nil
 	}
 
 	body, _ := json.Marshal(map[string]string{
 		"client_id":     oauthClientID,
 		"grant_type":    "refresh_token",
-		"refresh_token": creds.Tokens.RefreshToken,
+		"refresh_token": creds.RefreshToken,
 		"scope":         "openid profile email",
 	})
 
@@ -215,11 +268,12 @@ func (p *Provider) ensureAccessToken(ctx context.Context, creds *oauthCredential
 
 	// Update credentials file
 	updated := *creds
-	if payload.AccessToken != "" {
-		updated.Tokens.AccessToken = payload.AccessToken
+	updated.AccessToken = payload.AccessToken
+	if expiry := jwtExp(payload.AccessToken); !expiry.IsZero() {
+		updated.Expires = expiry.UnixMilli()
 	}
 	if payload.RefreshToken != "" {
-		updated.Tokens.RefreshToken = payload.RefreshToken
+		updated.RefreshToken = payload.RefreshToken
 	}
 	_ = p.writeCredentials(&updated)
 
@@ -286,27 +340,42 @@ func (p *Provider) writeCredentials(creds *oauthCredentials) error {
 	if err != nil {
 		return err
 	}
-	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	tokens, ok := raw["tokens"].(map[string]any)
-	if !ok {
-		tokens = make(map[string]any)
-		raw["tokens"] = tokens
-	}
-	tokens["access_token"] = creds.Tokens.AccessToken
-	tokens["refresh_token"] = creds.Tokens.RefreshToken
-	if creds.Tokens.AccountID != "" {
-		tokens["account_id"] = creds.Tokens.AccountID
-	}
-	raw["last_refresh"] = p.now().UTC().Format("2006-01-02T15:04:05.000000000Z")
 
-	updated, err := json.MarshalIndent(raw, "", "  ")
+	switch p.source {
+	case "pi":
+		var auth map[string]json.RawMessage
+		if err := json.Unmarshal(data, &auth); err != nil {
+			return err
+		}
+		encoded, err := json.Marshal(piOAuthCredentials{
+			Type: "oauth", AccessToken: creds.AccessToken, RefreshToken: creds.RefreshToken,
+			AccountID: creds.AccountID, Expires: creds.Expires,
+		})
+		if err != nil {
+			return err
+		}
+		auth[piCredentialsID] = encoded
+		data, err = json.MarshalIndent(auth, "", "  ")
+	case "codex":
+		var auth map[string]any
+		if err := json.Unmarshal(data, &auth); err != nil {
+			return err
+		}
+		tokens, ok := auth["tokens"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("parse Codex credentials: missing tokens")
+		}
+		tokens["access_token"] = creds.AccessToken
+		tokens["refresh_token"] = creds.RefreshToken
+		tokens["account_id"] = creds.AccountID
+		data, err = json.MarshalIndent(auth, "", "  ")
+	default:
+		return fmt.Errorf("unsupported Codex credential source: %s", p.source)
+	}
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p.credsPath, updated, 0600)
+	return os.WriteFile(p.credsPath, data, 0600)
 }
 
 func jwtExp(token string) time.Time {

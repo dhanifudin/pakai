@@ -7,7 +7,7 @@
   <circle cx="62" cy="22" r="7" fill="#a6e3a1"/>
   <text x="50%" y="25" text-anchor="middle" fill="#6c7086" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="12">pakai provider debug openai</text>
   <text x="20" y="66" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">Provider: openai</text>
-  <text x="20" y="88" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">Scanning: ~/.codex/auth.json</text>
+  <text x="20" y="88" fill="#cdd6f4" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">Scanning: selected credential source</text>
   <text x="20" y="110" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">Status: ok</text>
   <text x="20" y="132" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">  - 5h: 0%</text>
 </svg>

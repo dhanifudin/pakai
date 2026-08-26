@@ -19,6 +19,17 @@ PluginComponent {
     property date lastRefresh: new Date(0)
     property real worstPct: -1
     property int providerErrorCount: 0
+    property string pinnedProvider: ""
+    property var providerSettings: ({})
+    property var providerSources: ({})
+    property bool showingSettings: false
+    property var providerOptions: [
+        { providerId: "claude", label: "Claude", source: "Claude OAuth" },
+        { providerId: "openai", label: "Codex", defaultSource: "pi", sources: [{ value: "pi", label: "Pi" }, { value: "codex", label: "Codex CLI" }] },
+        { providerId: "opencode-go", label: "OpenCode Go", defaultSource: "pi", sources: [{ value: "pi", label: "Pi" }, { value: "opencode", label: "OpenCode" }] },
+        { providerId: "opencode", label: "OpenCode local", source: "Local SQLite usage" },
+        { providerId: "pi", label: "Pi sessions", source: "Local Pi session logs" }
+    ]
     property real settledPopoutHeight: 170
 
     readonly property color statusColor: errorMessage !== "" ? Theme.error
@@ -45,8 +56,9 @@ PluginComponent {
         }
     }
 
-    Component.onCompleted: Qt.callLater(fetchStatus)
+    Component.onCompleted: Qt.callLater(function() { fetchStatus(); fetchConfig() })
     onDaemonUrlChanged: Qt.callLater(fetchStatus)
+    onShowingSettingsChanged: settledPopoutHeight = desiredPopoutHeight()
 
     function request(method, path, timeout, done) {
         var xhr = new XMLHttpRequest()
@@ -127,7 +139,8 @@ PluginComponent {
         var errors = 0
         for (var i = 0; i < providers.length; i++) {
             if (providers[i].status === "error") errors++
-            result = Math.max(result, providerWorst(providers[i]))
+            if (pinnedProvider !== "" && providers[i].provider === pinnedProvider)
+                result = providerWorst(providers[i])
         }
         providerErrorCount = errors
         worstPct = result
@@ -183,6 +196,7 @@ PluginComponent {
     }
 
     function desiredPopoutHeight() {
+        if (showingSettings) return 500
         var height = 136
         for (var i = 0; i < providers.length; i++) {
             var provider = providers[i]
@@ -208,9 +222,55 @@ PluginComponent {
         return "Unavailable"
     }
 
+    function fetchConfig() {
+        request("GET", "/api/config", 10000, function(status, body) {
+            if (status !== 200) return
+            try {
+                var data = JSON.parse(body)
+                root.pinnedProvider = data.widget ? (data.widget.pinned || "") : ""
+                root.providerSettings = data.providers || ({})
+                root.providerSources = data.sources || ({})
+                root.computeWorst()
+            } catch (error) {}
+        })
+    }
+
     function hideProvider(providerId) {
         request("GET", "/api/config?hide=" + encodeURIComponent(providerId), 10000, function(status) {
             if (status === 200) root.fetchStatus()
+        })
+    }
+
+    function setProviderEnabled(providerId, enabled) {
+        var action = enabled ? "enable" : "disable"
+        request("GET", "/api/config?" + action + "=" + encodeURIComponent(providerId), 10000, function(status) {
+            if (status === 200) {
+                root.fetchConfig()
+                root.fetchStatus()
+            }
+        })
+    }
+
+    function providerSource(option) {
+        return root.providerSources[option.providerId] || option.defaultSource || ""
+    }
+
+    function setProviderSource(providerId, source) {
+        request("GET", "/api/config?source=" + encodeURIComponent(providerId) + "&value=" + encodeURIComponent(source), 10000, function(status) {
+            if (status === 200) {
+                root.fetchConfig()
+                root.fetchStatus()
+            }
+        })
+    }
+
+    function setPinnedProvider(providerId) {
+        var path = providerId === "" ? "/api/config?unpin" : "/api/config?pin=" + encodeURIComponent(providerId)
+        request("GET", path, 10000, function(status) {
+            if (status === 200) {
+                root.fetchConfig()
+                root.fetchStatus()
+            }
         })
     }
 
@@ -282,6 +342,7 @@ PluginComponent {
             showCloseButton: true
 
             DankFlickable {
+                visible: !root.showingSettings
                 width: parent.width
                 implicitHeight: root.popoutHeight - popout.headerHeight - popout.detailsHeight - Theme.spacingS * 2
                 contentWidth: width
@@ -541,10 +602,189 @@ PluginComponent {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: PopoutService.openSettingsWithTab("plugins")
+                                onClicked: {
+                                    root.showingSettings = true
+                                    root.fetchConfig()
+                                }
                             }
                         }
                     }
+                }
+            }
+
+            Column {
+                visible: root.showingSettings
+                width: parent.width
+                spacing: Theme.spacingM
+
+                Row {
+                    width: parent.width
+                    height: 32
+                    spacing: Theme.spacingS
+
+                    Rectangle {
+                        width: 62
+                        height: parent.height
+                        radius: Theme.cornerRadius
+                        color: backArea.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh
+
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: "← Back"
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.Medium
+                            color: Theme.primary
+                        }
+
+                        MouseArea {
+                            id: backArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.showingSettings = false
+                        }
+                    }
+
+                    StyledText {
+                        text: "Provider settings"
+                        font.pixelSize: Theme.fontSizeMedium
+                        font.weight: Font.Medium
+                        color: Theme.surfaceText
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                StyledText {
+                    width: parent.width
+                    text: "Choose credentials, then choose one provider for the small panel indicator."
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceVariantText
+                    wrapMode: Text.WordWrap
+                }
+
+                Repeater {
+                    model: root.providerOptions
+
+                    delegate: Rectangle {
+                        id: providerRow
+                        required property var modelData
+                        property var option: modelData
+                        property bool active: root.providerSettings[option.providerId] !== false
+                        property bool hasSources: option.sources !== undefined
+                        width: parent.width
+                        height: hasSources ? 78 : 56
+                        radius: Theme.cornerRadius
+                        color: Theme.surfaceContainerHigh
+
+                        Column {
+                            anchors.left: parent.left
+                            anchors.right: controls.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: Theme.spacingM
+                            anchors.rightMargin: Theme.spacingS
+                            spacing: 2
+
+                            StyledText {
+                                text: providerRow.option.label
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Medium
+                                color: providerRow.active ? Theme.surfaceText : Theme.surfaceVariantText
+                            }
+
+                            StyledText {
+                                visible: !providerRow.hasSources
+                                width: parent.width
+                                text: providerRow.option.source
+                                font.pixelSize: Theme.fontSizeSmall - 1
+                                color: Theme.surfaceVariantText
+                                elide: Text.ElideRight
+                            }
+
+                            Row {
+                                visible: providerRow.hasSources
+                                spacing: Theme.spacingXS
+
+                                Repeater {
+                                    model: providerRow.option.sources || []
+
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        property bool selected: root.providerSource(providerRow.option) === modelData.value
+                                        width: sourceLabel.implicitWidth + Theme.spacingS * 2
+                                        height: 20
+                                        radius: height / 2
+                                        color: selected ? Theme.primary : Theme.surfaceContainerHighest
+
+                                        StyledText {
+                                            id: sourceLabel
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            font.pixelSize: Theme.fontSizeSmall - 1
+                                            font.weight: Font.Medium
+                                            color: selected ? Theme.surface : Theme.surfaceVariantText
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.setProviderSource(providerRow.option.providerId, modelData.value)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Row {
+                            id: controls
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.spacingM
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.spacingS
+
+                            StyledText {
+                                text: root.pinnedProvider === providerRow.option.providerId ? "Showing" : "Show"
+                                font.pixelSize: Theme.fontSizeSmall - 1
+                                font.weight: Font.Medium
+                                color: Theme.primary
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    anchors.margins: -Theme.spacingXS
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.setPinnedProvider(root.pinnedProvider === providerRow.option.providerId ? "" : providerRow.option.providerId)
+                                }
+                            }
+
+                            Rectangle {
+                                width: 36
+                                height: 20
+                                radius: height / 2
+                                color: providerRow.active ? Theme.primary : Theme.surfaceContainerHighest
+
+                                Rectangle {
+                                    width: 14
+                                    height: 14
+                                    radius: width / 2
+                                    x: providerRow.active ? parent.width - width - 3 : 3
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: Theme.surface
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.setProviderEnabled(providerRow.option.providerId, !providerRow.active)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                StyledText {
+                    width: parent.width
+                    text: root.pinnedProvider === "" ? "Small panel: tap Show on one provider" : "Small panel: " + root.providerName({ provider: root.pinnedProvider, label: root.pinnedProvider })
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceVariantText
                 }
             }
         }

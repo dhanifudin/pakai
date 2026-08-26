@@ -1,72 +1,89 @@
 package opencodego
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/dhanifudin/pakai/internal/config"
 	"github.com/dhanifudin/pakai/internal/schema"
 )
 
-const providerID = "opencode-go"
-
-// Env vars for web dashboard auth.
 const (
-	envCookie      = "OPENCODE_COOKIE"
-	envWorkspaceID = "OPENCODE_WORKSPACE_ID"
+	providerID = "opencode-go"
+	usageURL   = "https://opencode.ai/zen/go/v1/usage"
 )
 
-// Provider fetches opencode-go usage from the opencode.ai web dashboard.
 type Provider struct {
+	authPath   string
+	source     string
+	usageURL   string
 	httpClient *http.Client
 }
 
-// New creates a new opencode-go provider.
+type apiKeyCredentials struct {
+	Type string `json:"type"`
+	Key  string `json:"key"`
+}
+
+type usageResponse struct {
+	Usage struct {
+		Rolling *usageWindow `json:"rolling"`
+		Weekly  *usageWindow `json:"weekly"`
+		Monthly *usageWindow `json:"monthly"`
+	} `json:"usage"`
+}
+
+type usageWindow struct {
+	Percent  float64   `json:"percent"`
+	ResetsAt time.Time `json:"resetsAt"`
+}
+
 func New() *Provider {
+	home, _ := os.UserHomeDir()
+	source := config.GetProviderSource(providerID)
+	if source == "" {
+		source = "pi"
+	}
+	path := filepath.Join(home, ".pi", "agent", "auth.json")
+	if source == "opencode" {
+		path = filepath.Join(home, ".local", "share", "opencode", "auth.json")
+	}
+	p := newWithPath(path)
+	p.source = source
+	return p
+}
+
+func newWithPath(authPath string) *Provider {
 	return &Provider{
+		authPath:   authPath,
+		source:     "pi",
+		usageURL:   usageURL,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
-// ID returns "opencode-go".
 func (p *Provider) ID() string {
 	return providerID
 }
 
-// Fetch returns usage windows from the opencode.ai billing dashboard.
-// Requires OPENCODE_COOKIE and OPENCODE_WORKSPACE_ID env vars.
-func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
-	cookie := getEnv(envCookie)
-	wid := getEnv(envWorkspaceID)
+func (p *Provider) CredentialsPath() string {
+	return p.authPath
+}
 
-	if cookie == "" || wid == "" {
-		return &schema.Usage{
-			Provider:    providerID,
-			Label:       config.GetProviderLabel(providerID),
-			Status:      schema.StatusError,
-			Error:       "OPENCODE_COOKIE and OPENCODE_WORKSPACE_ID env vars not set",
-			RefreshedAt: time.Now(),
-		}, nil
+func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
+	key, err := p.readAPIKey()
+	if err != nil {
+		return p.errorUsage(err), nil
 	}
 
-	windows, err := fetchDashboard(ctx, p.httpClient, cookie, wid)
+	windows, err := p.fetchUsage(ctx, key)
 	if err != nil {
-		return &schema.Usage{
-			Provider:    providerID,
-			Label:       config.GetProviderLabel(providerID),
-			Status:      schema.StatusError,
-			Error:       err.Error(),
-			RefreshedAt: time.Now(),
-		}, nil
+		return p.errorUsage(err), nil
 	}
 
 	return &schema.Usage{
@@ -79,154 +96,90 @@ func (p *Provider) Fetch(ctx context.Context) (*schema.Usage, error) {
 	}, nil
 }
 
-// getEnv reads from process env first, then falls back to .env files.
-func getEnv(key string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	// Check ~/.config/pakai/.env
-	home, _ := os.UserHomeDir()
-	if home != "" {
-		loadDotenv(filepath.Join(home, ".config", "pakai", ".env"))
-	}
-	// Check cwd/.env
-	if wd, err := os.Getwd(); err == nil {
-		loadDotenv(filepath.Join(wd, ".env"))
-	}
-	return os.Getenv(key)
-}
-
-func loadDotenv(path string) {
-	f, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		k, v, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		k = strings.TrimSpace(k)
-		v = strings.TrimSpace(v)
-		// Only set if not already in process env
-		if os.Getenv(k) == "" {
-			os.Setenv(k, v)
-		}
+func (p *Provider) errorUsage(err error) *schema.Usage {
+	return &schema.Usage{
+		Provider:    providerID,
+		Label:       config.GetProviderLabel(providerID),
+		Status:      schema.StatusError,
+		Error:       err.Error(),
+		RefreshedAt: time.Now(),
 	}
 }
-func fetchDashboard(ctx context.Context, client *http.Client, cookie, workspaceID string) ([]schema.UsageWindow, error) {
-	url := fmt.Sprintf("https://opencode.ai/workspace/%s/go", workspaceID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("opencode-go: request error: %w", err)
-	}
-	req.Header.Set("Cookie", "auth="+cookie)
-	req.Header.Set("User-Agent", "pakai/1.0")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
-	resp, err := client.Do(req)
+func (p *Provider) readAPIKey() (string, error) {
+	data, err := os.ReadFile(p.authPath)
 	if err != nil {
-		return nil, fmt.Errorf("opencode-go: fetch error: %w", err)
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("%s OpenCode Go API key not found", p.source)
+		}
+		return "", fmt.Errorf("read %s OpenCode credentials: %w", p.source, err)
+	}
+	var auth map[string]apiKeyCredentials
+	if err := json.Unmarshal(data, &auth); err != nil {
+		return "", fmt.Errorf("parse %s OpenCode credentials: %w", p.source, err)
+	}
+	keyID, keyType := providerID, "api_key"
+	if p.source == "opencode" {
+		keyID, keyType = "opencode", "api"
+	}
+	creds, ok := auth[keyID]
+	if !ok || creds.Type != keyType || creds.Key == "" {
+		return "", fmt.Errorf("%s OpenCode Go API key not found", p.source)
+	}
+	return creds.Key, nil
+}
+
+func (p *Provider) fetchUsage(ctx context.Context, key string) ([]schema.UsageWindow, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.usageURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create OpenCode usage request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch OpenCode usage: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("opencode-go: cookie expired or invalid (status %d)", resp.StatusCode)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("opencode-go: billing page returned status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("opencode-go: read error: %w", err)
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusUnauthorized:
+		return nil, fmt.Errorf("OpenCode API key is invalid")
+	case http.StatusForbidden:
+		return nil, fmt.Errorf("OpenCode API key has no Go subscription")
+	default:
+		return nil, fmt.Errorf("OpenCode usage request failed: status %d", resp.StatusCode)
 	}
 
-	return parseDashboard(string(body)), nil
+	var usage usageResponse
+	if err := json.NewDecoder(resp.Body).Decode(&usage); err != nil {
+		return nil, fmt.Errorf("parse OpenCode usage: %w", err)
+	}
+	return usage.windows(), nil
 }
 
-var (
-	rollingPctRe = regexp.MustCompile(`rollingUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)`)
-	rollingRstRe = regexp.MustCompile(`rollingUsage[^}]*?resetInSec\s*:\s*([0-9]+)`)
-	weeklyPctRe  = regexp.MustCompile(`weeklyUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)`)
-	weeklyRstRe  = regexp.MustCompile(`weeklyUsage[^}]*?resetInSec\s*:\s*([0-9]+)`)
-	monthlyPctRe = regexp.MustCompile(`monthlyUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)`)
-	monthlyRstRe = regexp.MustCompile(`monthlyUsage[^}]*?resetInSec\s*:\s*([0-9]+)`)
-)
-
-func parseDashboard(text string) []schema.UsageWindow {
-	now := time.Now()
-
-	rp, rok := extractFloat(rollingPctRe, text)
-	rr, rrok := extractInt(rollingRstRe, text)
-	if !rok || !rrok {
-		return nil
-	}
-
-	windows := []schema.UsageWindow{{
-		Key:     "5h",
-		Label:   "5h",
-		Used:    rp,
-		Limit:   100,
-		Unit:    "percent",
-		ResetAt: now.Add(time.Duration(rr) * time.Second),
-	}}
-
-	if wp, wok := extractFloat(weeklyPctRe, text); wok {
-		if wr, wrok := extractInt(weeklyRstRe, text); wrok {
-			windows = append(windows, schema.UsageWindow{
-				Key:     "weekly",
-				Label:   "weekly",
-				Used:    wp,
-				Limit:   100,
-				Unit:    "percent",
-				ResetAt: now.Add(time.Duration(wr) * time.Second),
-			})
+func (u usageResponse) windows() []schema.UsageWindow {
+	windows := make([]schema.UsageWindow, 0, 3)
+	for _, item := range []struct {
+		key, label string
+		window     *usageWindow
+	}{
+		{"5h", "5h", u.Usage.Rolling},
+		{"weekly", "weekly", u.Usage.Weekly},
+		{"monthly", "monthly", u.Usage.Monthly},
+	} {
+		if item.window == nil {
+			continue
 		}
-	}
-
-	mp, mok := extractFloat(monthlyPctRe, text)
-	mr, mrok := extractInt(monthlyRstRe, text)
-	if mok || mrok {
 		windows = append(windows, schema.UsageWindow{
-			Key:     "monthly",
-			Label:   "monthly",
-			Used:    mp,
+			Key:     item.key,
+			Label:   item.label,
+			Used:    item.window.Percent,
 			Limit:   100,
 			Unit:    "percent",
-			ResetAt: now.Add(time.Duration(mr) * time.Second),
+			ResetAt: item.window.ResetsAt,
 		})
 	}
-
 	return windows
-}
-
-func extractFloat(re *regexp.Regexp, text string) (float64, bool) {
-	m := re.FindStringSubmatch(text)
-	if len(m) < 2 {
-		return 0, false
-	}
-	v, err := strconv.ParseFloat(m[1], 64)
-	if err != nil {
-		return 0, false
-	}
-	return v, true
-}
-
-func extractInt(re *regexp.Regexp, text string) (int, bool) {
-	m := re.FindStringSubmatch(text)
-	if len(m) < 2 {
-		return 0, false
-	}
-	v, err := strconv.Atoi(m[1])
-	if err != nil {
-		return 0, false
-	}
-	return v, true
 }

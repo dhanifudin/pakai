@@ -29,6 +29,7 @@ type ProviderConfig struct {
 	Enabled bool     `toml:"enabled"`
 	Label   string   `toml:"label"`
 	Limit   *float64 `toml:"limit"`
+	Source  string   `toml:"source"`
 }
 
 type DisplayConfig struct {
@@ -163,6 +164,13 @@ func GetProviderLimit(id string) float64 {
 		return *p.Limit
 	}
 	return 0
+}
+
+func GetProviderSource(id string) string {
+	if p, ok := Config().Provider[id]; ok {
+		return p.Source
+	}
+	return ""
 }
 
 func GetSeparator() string {
@@ -504,6 +512,8 @@ func setDynamicProviderKey(key, value string) error {
 		p.Enabled = b
 	case "label":
 		p.Label = value
+	case "source":
+		p.Source = value
 	case "limit":
 		f, err := strconv.ParseFloat(value, 64)
 		if err != nil {
@@ -543,6 +553,11 @@ func getDynamicProviderKey(key string) (string, error) {
 			return p.Label, nil
 		}
 		return "", nil
+	case "source":
+		if exists {
+			return p.Source, nil
+		}
+		return "", nil
 	case "limit":
 		if exists && p.Limit != nil {
 			return fmt.Sprintf("%.2f", *p.Limit), nil
@@ -562,7 +577,7 @@ func parseProviderKey(key string) (id, field string, ok bool) {
 		return "", "", false
 	}
 	switch parts[2] {
-	case "enabled", "label", "limit":
+	case "enabled", "label", "limit", "source":
 		return parts[1], parts[2], true
 	default:
 		return "", "", false

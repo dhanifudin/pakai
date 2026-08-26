@@ -11,7 +11,7 @@
   <text x="20" y="110" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">  5h ██████░░░░ 63%  resets in 13m</text>
   <text x="20" y="132" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">  w  █░░░░░░░░░ 18%  resets in 4d 23h</text>
   <text x="20" y="154" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">󱢆 codex: 0% (0.00 of 100.00 percent)</text>
-  <text x="20" y="176" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">opencode-go: OPENCODE_COOKIE and OPENCODE_WORKSPACE_ID env vars not set</text>
+  <text x="20" y="176" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">opencode-go: Pi OpenCode Go API key not found</text>
   <text x="20" y="198" fill="#f9e2af" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">class: warning</text>
   <text x="20" y="220" fill="#a6e3a1" font-family="JetBrains Mono, Cascadia Code, Consolas, monospace" font-size="14" xml:space="preserve">percentage: 63%</text>
 </svg>

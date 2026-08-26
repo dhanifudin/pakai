@@ -15,6 +15,9 @@ func TestDetect_Found(t *testing.T) {
 	opencodePath := filepath.Join(dir, ".local", "share", "opencode", "opencode-stable.db")
 	os.MkdirAll(filepath.Dir(opencodePath), 0755)
 	os.WriteFile(opencodePath, []byte(""), 0644)
+	piAuthPath := filepath.Join(dir, ".pi", "agent", "auth.json")
+	os.MkdirAll(filepath.Dir(piAuthPath), 0755)
+	os.WriteFile(piAuthPath, []byte("{}"), 0644)
 
 	results := Detect(func() string { return dir })
 	if len(results) != 4 {
@@ -28,6 +31,18 @@ func TestDetect_Found(t *testing.T) {
 	}
 	if results[1].Path != opencodePath {
 		t.Errorf("opencode path = %q, want %q", results[1].Path, opencodePath)
+	}
+	if !results[2].Found {
+		t.Error("openai should be found")
+	}
+	if results[2].Path != piAuthPath {
+		t.Errorf("openai path = %q, want %q", results[2].Path, piAuthPath)
+	}
+	if !results[3].Found {
+		t.Error("opencode-go should be found")
+	}
+	if results[3].Path != piAuthPath {
+		t.Errorf("opencode-go path = %q, want %q", results[3].Path, piAuthPath)
 	}
 }
 
@@ -43,6 +58,28 @@ func TestDetect_OpenCodeLegacyDB(t *testing.T) {
 	}
 	if results[1].Path != opencodePath {
 		t.Errorf("opencode path = %q, want %q", results[1].Path, opencodePath)
+	}
+}
+
+func TestDetect_CredentialAlternatives(t *testing.T) {
+	dir := t.TempDir()
+	codexPath := filepath.Join(dir, ".codex", "auth.json")
+	opencodePath := filepath.Join(dir, ".local", "share", "opencode", "auth.json")
+	for _, path := range []string{codexPath, opencodePath} {
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("{}"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	results := Detect(func() string { return dir })
+	if !results[2].Found || results[2].Path != codexPath {
+		t.Errorf("openai = %+v, want %q", results[2], codexPath)
+	}
+	if !results[3].Found || results[3].Path != opencodePath {
+		t.Errorf("opencode-go = %+v, want %q", results[3], opencodePath)
 	}
 }
 

@@ -5,9 +5,9 @@ pakai supports the following usage data sources. Each provider has its own page 
 | Provider | ID | Source | Windows | Auth required |
 |---|---|---|---|---|
 | [Claude](claude.md) | `claude` | OAuth API + `~/.claude/stats-cache.json` | 5h, weekly | `claude login` |
-| [OpenAI Codex](codex.md) | `openai` | `~/.codex/auth.json` OAuth | 5h, weekly | `codex login` |
+| [OpenAI Codex](codex.md) | `openai` | Pi OAuth or Codex CLI OAuth | 5h, weekly | Pi or Codex CLI login |
 | [OpenCode (local)](opencode.md) | `opencode` | `~/.local/share/opencode/*.db` SQLite | 5h, weekly, monthly | opencode.ai login |
-| [OpenCode Go](opencode-go.md) | `opencode-go` | opencode.ai web dashboard | 5h, weekly, monthly | `OPENCODE_COOKIE` + `OPENCODE_WORKSPACE_ID` env vars |
+| [OpenCode Go](opencode-go.md) | `opencode-go` | OpenCode Usage API | 5h, weekly, monthly | Pi or OpenCode API key |
 | [Pi](pi.md) | `pi/<provider>` | `~/.pi/agent/sessions/**/*.jsonl` | Monthly (local tokens) | Use Pi |
 
 ## Quick config reference
