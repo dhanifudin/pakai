@@ -23,7 +23,7 @@ $ pakai setup
       \item Claude: \texttt{\textasciitilde/.claude/stats-cache.json}
       \item OpenCode Go: \texttt{\textasciitilde/.local/share/opencode/opencode-stable.db}
             atau \texttt{opencode.db}
-      \item OpenAI Codex: \texttt{\textasciitilde/.codex/auth.json}
+      \item OpenAI Codex: \texttt{\textasciitilde/.pi/agent/auth.json} atau \texttt{\textasciitilde/.codex/auth.json}
     \end{itemize}
   \item \textbf{Memulai daemon} jika belum berjalan.
   \item \textbf{Membuat unit systemd} di\\
@@ -106,11 +106,8 @@ Kredensial disimpan di \texttt{\textasciitilde/.claude/.credentials.json}.
 
 \subsection{OpenAI Codex}
 
-\begin{lstlisting}[style=terminal]
-$ codex login
-\end{lstlisting}
-
-Kredensial disimpan di \texttt{\textasciitilde/.codex/auth.json}.
+Pilih sumber Pi atau Codex CLI di Settings PakAI. Kredensial OAuth dibaca dari
+\texttt{\textasciitilde/.pi/agent/auth.json} atau \texttt{\textasciitilde/.codex/auth.json}.
 
 \subsection{OpenCode Go}
 

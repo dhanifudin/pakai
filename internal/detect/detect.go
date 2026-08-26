@@ -33,22 +33,29 @@ func Detect(home homeFunc) []Detection {
 			path, found := resolveOpenCodeDB(dir)
 			return Detection{ProviderID: "opencode", Path: path, Found: found}
 		}(),
-		{
-			ProviderID: "openai",
-			Path:       filepath.Join(h, ".codex", "auth.json"),
-			Found:      fileExists(filepath.Join(h, ".codex", "auth.json")),
-		},
-		{
-			ProviderID: "opencode-go",
-			Path:       "OPENCODE_COOKIE env var",
-			Found:      os.Getenv("OPENCODE_COOKIE") != "",
-		},
+		func() Detection {
+			path, found := firstExisting(filepath.Join(h, ".pi", "agent", "auth.json"), filepath.Join(h, ".codex", "auth.json"))
+			return Detection{ProviderID: "openai", Path: path, Found: found}
+		}(),
+		func() Detection {
+			path, found := firstExisting(filepath.Join(h, ".pi", "agent", "auth.json"), filepath.Join(h, ".local", "share", "opencode", "auth.json"))
+			return Detection{ProviderID: "opencode-go", Path: path, Found: found}
+		}(),
 	}
 }
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func firstExisting(paths ...string) (string, bool) {
+	for _, path := range paths {
+		if fileExists(path) {
+			return path, true
+		}
+	}
+	return paths[0], false
 }
 
 // opencodeDBNames lists candidate filenames in preference order, matching the

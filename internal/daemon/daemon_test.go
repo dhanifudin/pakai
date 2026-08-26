@@ -19,9 +19,9 @@ func TestHealthHandlerResponseShape(t *testing.T) {
 	hub.clientCnt.Store(2)
 
 	s := &Server{
-		port:       7731,
-		startTime:  time.Now(),
-		hub:        hub,
+		port:      7731,
+		startTime: time.Now(),
+		hub:       hub,
 	}
 
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -75,9 +75,9 @@ func TestHealthHandlerResponseShape(t *testing.T) {
 
 func TestHealthHandlerStatusOk(t *testing.T) {
 	s := &Server{
-		port:       7731,
-		startTime:  time.Now(),
-		hub:        NewHub(),
+		port:      7731,
+		startTime: time.Now(),
+		hub:       NewHub(),
 	}
 
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -94,6 +94,33 @@ func TestHealthHandlerStatusOk(t *testing.T) {
 
 	if status, ok := resp["status"].(string); !ok || status != "ok" {
 		t.Errorf("status = %v, want ok", resp["status"])
+	}
+}
+
+func TestWidgetConfigReturnsProviderStates(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	s := &Server{}
+	req := httptest.NewRequest("GET", "/api/config", nil)
+	rec := httptest.NewRecorder()
+
+	s.handleWidgetConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var resp widgetConfigResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"claude", "openai", "opencode", "opencode-go", "pi"} {
+		if _, ok := resp.Providers[id]; !ok {
+			t.Errorf("missing provider state for %q", id)
+		}
+	}
+	for _, id := range []string{"openai", "opencode-go"} {
+		if _, ok := resp.Sources[id]; !ok {
+			t.Errorf("missing source for %q", id)
+		}
 	}
 }
 
@@ -204,9 +231,9 @@ func TestIsAddrInUse(t *testing.T) {
 
 func TestHealthHandlerUptimeSeconds(t *testing.T) {
 	s := &Server{
-		port:       7731,
-		startTime:  time.Now().Add(-90 * time.Second),
-		hub:        NewHub(),
+		port:      7731,
+		startTime: time.Now().Add(-90 * time.Second),
+		hub:       NewHub(),
 	}
 
 	req := httptest.NewRequest("GET", "/health", nil)

@@ -420,7 +420,9 @@ func GetPID() (int, error) {
 // -- Widget config API handler (query-param based) --
 
 type widgetConfigResponse struct {
-	Widget config.WidgetConfig `json:"widget"`
+	Widget    config.WidgetConfig `json:"widget"`
+	Providers map[string]bool     `json:"providers"`
+	Sources   map[string]string   `json:"sources"`
 }
 
 func (s *Server) handleWidgetConfig(w http.ResponseWriter, r *http.Request) {
@@ -473,6 +475,30 @@ func (s *Server) handleWidgetConfig(w http.ResponseWriter, r *http.Request) {
 		mutated = true
 	}
 
+	if id := q.Get("enable"); id != "" {
+		if err := config.SetKey("provider."+id+".enabled", "true"); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		mutated = true
+	}
+
+	if id := q.Get("disable"); id != "" {
+		if err := config.SetKey("provider."+id+".enabled", "false"); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		mutated = true
+	}
+
+	if id, source := q.Get("source"), q.Get("value"); id != "" && source != "" {
+		if err := config.SetKey("provider."+id+".source", source); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		mutated = true
+	}
+
 	if mutated {
 		s.loop.UpdateProviders(s.buildProviders())
 	}
@@ -480,6 +506,17 @@ func (s *Server) handleWidgetConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(widgetConfigResponse{
 		Widget: config.Config().Widget,
+		Providers: map[string]bool{
+			"claude":      config.IsProviderEnabled("claude"),
+			"openai":      config.IsProviderEnabled("openai"),
+			"opencode":    config.IsProviderEnabled("opencode"),
+			"opencode-go": config.IsProviderEnabled("opencode-go"),
+			"pi":          config.IsProviderEnabled("pi"),
+		},
+		Sources: map[string]string{
+			"openai":      config.GetProviderSource("openai"),
+			"opencode-go": config.GetProviderSource("opencode-go"),
+		},
 	})
 }
 

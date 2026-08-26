@@ -984,7 +984,7 @@ func newProviderDebugCmd() *cobra.Command {
 
 			case "openai":
 				p := codex.New()
-				fmt.Printf("Scanning: ~/.codex/auth.json\n")
+				fmt.Printf("Scanning: %s\n", p.CredentialsPath())
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 				u, err := p.Fetch(ctx)
@@ -1006,13 +1006,7 @@ func newProviderDebugCmd() *cobra.Command {
 
 			case "opencode-go":
 				p := opencodegoprov.New()
-				fmt.Printf("Scanning: opencode.ai billing dashboard\n")
-				if os.Getenv("OPENCODE_COOKIE") == "" {
-					fmt.Println("  OPENCODE_COOKIE not set — set this env var and re-run")
-				}
-				if os.Getenv("OPENCODE_WORKSPACE_ID") == "" {
-					fmt.Println("  OPENCODE_WORKSPACE_ID not set — set this env var and re-run")
-				}
+				fmt.Printf("Scanning: %s\n", p.CredentialsPath())
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 				u, err := p.Fetch(ctx)

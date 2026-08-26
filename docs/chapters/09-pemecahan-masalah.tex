@@ -110,13 +110,10 @@ $ claude logout && claude login
 
 \subsection{Kredensial Codex tidak ditemukan}
 
-\textbf{Gejala:} \texttt{Codex credentials not found: ensure Codex is installed}
+\textbf{Gejala:} \texttt{Pi Codex credentials not found}
 
-\textbf{Solusi:}
-\begin{lstlisting}[style=terminal]
-$ codex login
-$ ls ~/.codex/auth.json   # verifikasi
-\end{lstlisting}
+\textbf{Solusi:} Pilih sumber Pi atau Codex CLI di Settings, lalu login pada
+sumber tersebut.
 
 \subsection{Permintaan penggunaan Codex gagal}
 
@@ -124,10 +121,7 @@ $ ls ~/.codex/auth.json   # verifikasi
 
 \textbf{Penyebab:} Token akses kedaluwarsa.
 
-\textbf{Solusi:}
-\begin{lstlisting}[style=terminal]
-$ codex logout && codex login
-\end{lstlisting}
+\textbf{Solusi:} Sambungkan ulang sumber Codex yang dipilih.
 
 \subsection{Kesalahan sertifikat TLS}
 

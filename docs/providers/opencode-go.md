@@ -1,57 +1,29 @@
-# OpenCode Go (web dashboard)
+# OpenCode Go
 
-Track usage from the [opencode.ai billing dashboard](https://opencode.ai/workspace) — the same percentages shown in the web UI.
+Track OpenCode Go subscription quota through the [Usage API](https://opencode.ai/console/guides/usage).
 
-## Overview
+## Credential source
 
-| | |
-|---|---|
-| **Provider ID** | `opencode-go` |
-| **Data source** | opencode.ai web dashboard (HTTP scrape) |
-| **Windows** | 5-hour, weekly, monthly |
-| **Unit** | percent (from the dashboard) |
-
-## Prerequisites
-
-You need two values from the opencode.ai web dashboard:
-
-1. **Session cookie** — open `opencode.ai`, open DevTools (F12) → Application → Cookies → copy the value of the session cookie.
-2. **Workspace ID** — visible in the URL: `opencode.ai/workspace/<workspace-id>`.
-
-## Enable / setup
-
-Set the two environment variables, then run `pakai setup`:
+Choose the source in the PakAI widget Settings, or set it directly:
 
 ```bash
-export OPENCODE_COOKIE="your-session-cookie-value"
-export OPENCODE_WORKSPACE_ID="your-workspace-id"
-pakai setup
+# Pi's opencode-go key
+pakai config set provider.opencode-go.source pi
+
+# OpenCode CLI key
+pakai config set provider.opencode-go.source opencode
 ```
 
-To persist them, add to a `.env` file in the directory where you run pakai, or export from your shell profile.
+| Source | Credential file | Key |
+|---|---|---|
+| Pi | `~/.pi/agent/auth.json` | `opencode-go` |
+| OpenCode | `~/.local/share/opencode/auth.json` | `opencode` |
 
-pakai loads `.env` from the current directory automatically.
-
-## Configuration
+## Enable
 
 ```bash
-# Set a dollar limit (optional — the web dashboard shows native percentages)
-pakai config set provider.opencode-go.limit 60
-
-# Disable if you prefer the local DB provider
-pakai config set provider.opencode-go.enabled false
+pakai config set provider.opencode-go.enabled true
+pakai daemon restart
 ```
 
-Config file: `$XDG_CONFIG_HOME/pakai/config.toml`
-
-## Result
-
-<img src="../images/providers/opencode-go.svg" alt="pakai provider debug opencode-go">
-
-## Troubleshooting
-
-| Error | Fix |
-|---|---|
-| `OPENCODE_COOKIE and OPENCODE_WORKSPACE_ID env vars not set` | Export the two vars or create a `.env` file |
-| `usage fetch failed: 401` | Session cookie expired — grab a fresh one from DevTools |
-| `usage fetch failed: 404` | Workspace ID is wrong — copy it again from the URL |
+The API returns 5-hour, weekly, and monthly percentages.

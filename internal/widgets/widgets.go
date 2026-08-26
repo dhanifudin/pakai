@@ -15,6 +15,17 @@ var FS embed.FS
 // ExtractTo copies the subtree at src within FS into dst on the real filesystem.
 // dst is created if it does not exist.
 func ExtractTo(src, dst string) error {
+	for range 16 {
+		link, err := os.Readlink(dst)
+		if err != nil {
+			break
+		}
+		if !filepath.IsAbs(link) {
+			link = filepath.Join(filepath.Dir(dst), link)
+		}
+		dst = link
+	}
+
 	sub, err := fs.Sub(FS, src)
 	if err != nil {
 		return fmt.Errorf("open embedded %s: %w", src, err)
